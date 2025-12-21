@@ -39,7 +39,9 @@ https://abbayah-backend.onrender.com
 
 ## Screenshots
 
-_Add screenshots here_
+<img src="screenshots/home.png" width="250">
+<img src="screenshots/category.png" width="250">
+<img src="screenshots/detail.png" width="250">
 
 ---
 
