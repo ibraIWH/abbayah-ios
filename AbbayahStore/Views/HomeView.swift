@@ -2,16 +2,14 @@ import SwiftUI
 
 // MARK: - Bottom Bar Tabs
 enum BottomTab {
-    case home
-    case favorites
-    case cart
-    case profile
+    case home, search, favorites, cart, profile
 }
 
 struct HomeView: View {
 
     // MARK: - Services
     @StateObject private var service = ProductService()
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - UI State
     @State private var selectedTab: BottomTab = .home
@@ -20,32 +18,57 @@ struct HomeView: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
 
-    private let categories = ["All", "Black", "Gagie", "Occasion"]
+    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+
+    // MARK: - Design Tokens
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .bottom) {
+                sandBg.ignoresSafeArea()
 
-                // MARK: - Content Switch
                 switch selectedTab {
                 case .home:
                     homeContent
+                case .search:
+                    placeholderView(icon: "magnifyingglass", title: "Search")
                 case .favorites:
-                    placeholderView(title: "Favorites")
+                    placeholderView(icon: "heart", title: "Favourites")
                 case .cart:
-                    placeholderView(title: "Cart")
+                    placeholderView(icon: "bag", title: "Cart")
                 case .profile:
-                    placeholderView(title: "Profile")
+                    placeholderView(icon: "person", title: "Profile")
                 }
 
-                // MARK: - Bottom Bar
-                VStack {
-                    Spacer()
-                    bottomBar
+                bottomBar
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Image("AbyrLogoDark")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 120)
+                        .scaleEffect(1.5)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        selectedTab = .cart
+                    } label: {
+                        Image(systemName: "bag")
+                            .foregroundColor(inkBlack)
+                    }
                 }
             }
-            .navigationTitle("Abbayah Store")
         }
+        .tint(.black)
         .task {
             await refreshProducts()
         }
@@ -53,95 +76,185 @@ struct HomeView: View {
 
     // MARK: - HOME CONTENT
     private var homeContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
 
-                // 🔍 Search
-                TextField("Search abbayah...", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal)
-                    .onSubmit {
-                        Task { await refreshProducts() }
+                // ── HERO STRIP ──────────────────────────
+                ZStack {
+                    inkBlack
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Abyr Line")
+                                .font(.custom("Georgia", size: 18))
+                                .italic()
+                                .foregroundColor(warmCream)
+                            Text("SPRING 2026")
+                                .font(.system(size: 9, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(goldTan)
+                        }
+                        Spacer()
+                        Text("SHOP →")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(Color(hex: "C4A882"))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color(hex: "C4A882").opacity(0.5), lineWidth: 0.5)
+                            )
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                }
+                .frame(height: 64)
 
-                // 🏷 Categories
+                // ── SEARCH ──────────────────────────────
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.gray.opacity(0.5))
+                    TextField("Search abayas, jalabiya...", text: $searchText)
+                        .font(.system(size: 13))
+                        .onSubmit {
+                            Task { await refreshProducts() }
+                        }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Color(hex: "F2F0EB"))
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                // ── CATEGORY CHIPS ──────────────────────
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         ForEach(categories, id: \.self) { category in
                             Button {
                                 selectedCategory = category
                                 Task { await refreshProducts() }
                             } label: {
-                                Text(category)
-                                    .font(.subheadline)
+                                Text(category.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(1)
                                     .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
+                                    .padding(.vertical, 7)
                                     .background(
                                         selectedCategory == category
-                                        ? Color.black
-                                        : Color.gray.opacity(0.2)
+                                        ? inkBlack
+                                        : Color.clear
                                     )
                                     .foregroundColor(
                                         selectedCategory == category
-                                        ? .white
-                                        : .primary
+                                        ? warmCream
+                                        : Color.gray
                                     )
-                                    .cornerRadius(20)
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(
+                                                selectedCategory == category
+                                                ? inkBlack
+                                                : borderColor,
+                                                lineWidth: 0.5
+                                            )
+                                    )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
                 }
+                .padding(.bottom, 16)
 
-                // 📦 STATES
+                // ── SECTION HEADER ──────────────────────
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NEW ARRIVALS")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(goldTan)
+                        Text("Featured Pieces")
+                            .font(.custom("Georgia", size: 22))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                    }
+                    Spacer()
+                    Text("VIEW ALL →")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(inkBlack)
+                        .padding(.bottom, 2)
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 0.5)
+                                .foregroundColor(inkBlack),
+                            alignment: .bottom
+                        )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+
+                // ── PRODUCT STATES ──────────────────────
                 if isLoading {
-                    ProgressView("Loading products...")
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                }
-                else if let errorMessage {
                     VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-
-                        Text("Failed to load products")
-                            .font(.headline)
-
-                        Text(errorMessage)
-                            .font(.caption)
+                        ProgressView()
+                            .tint(inkBlack)
+                        Text("Loading...")
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
 
-                        Button("Retry") {
+                } else if let errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
+                        Text("Could not load products")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(inkBlack)
+                        Text(errorMessage)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Try Again") {
                             Task { await refreshProducts() }
                         }
-                        .padding(.top, 8)
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(2)
+                        .foregroundColor(warmCream)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(inkBlack)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
-                }
-                else if service.products.isEmpty {
+                    .padding(.horizontal, 20)
+                    .padding(.top, 60)
+
+                } else if service.products.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "tray")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
                         Text("No products found")
-                            .font(.headline)
-
-                        Text("Try another category or search.")
-                            .font(.caption)
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                        Text("Try a different category or search.")
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
-                }
-                else {
-                    // 🛍 Products Grid
+                    .padding(.top, 60)
+
+                } else {
                     LazyVGrid(
                         columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
                         ],
                         spacing: 16
                     ) {
@@ -149,84 +262,99 @@ struct HomeView: View {
                             NavigationLink {
                                 ProductDetailView(product: product)
                             } label: {
-                                ProductCard(product: product)
+                                HniProductCard(product: product)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
+                    .animation(.easeIn(duration: 0.25), value: service.products)
                 }
 
-                // Spacer for bottom bar
-                Color.clear.frame(height: 120)
+                Color.clear.frame(height: 100)
             }
-            .padding(.top)
+        }
+        .refreshable {
+            await refreshProducts()
         }
     }
 
     // MARK: - BOTTOM BAR
     private var bottomBar: some View {
         HStack {
-            Spacer()
-            bottomBarButton(icon: "house.fill", tab: .home)
-            Spacer()
-            bottomBarButton(icon: "heart", tab: .favorites)
-            Spacer()
-            bottomBarButton(icon: "bag", tab: .cart)
-            Spacer()
-            bottomBarButton(icon: "person", tab: .profile)
-            Spacer()
+            bottomBarBtn(icon: "house", label: "Home", tab: .home)
+            bottomBarBtn(icon: "magnifyingglass", label: "Search", tab: .search)
+            bottomBarBtn(icon: "bag", label: "Cart", tab: .cart)
+            bottomBarBtn(icon: "heart", label: "Fav", tab: .favorites)
+            bottomBarBtn(icon: "person", label: "Profile", tab: .profile)
         }
-        .font(.title3)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 28)
-        .background(.ultraThinMaterial)
-        .overlay(Divider(), alignment: .top)
-        .ignoresSafeArea(edges: .bottom)
+        .background(
+            Color(UIColor.systemBackground)
+                .opacity(0.97)
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(borderColor),
+            alignment: .top
+        )
     }
 
-    private func bottomBarButton(icon: String, tab: BottomTab) -> some View {
-        Button {
-            if tab == .home {
-                selectedTab = .home
-                resetHomeState()
-            } else {
-                selectedTab = tab
-            }
+    private func bottomBarBtn(icon: String, label: String, tab: BottomTab) -> some View {
+        let isActive = selectedTab == tab
+        return Button {
+            selectedTab = tab
+            if tab == .home { resetHomeState() }
         } label: {
-            Image(systemName: icon)
-                .foregroundColor(
-                    selectedTab == tab ? .primary : .secondary
-                )
+            VStack(spacing: 4) {
+                Image(systemName: isActive ? icon + ".fill" : icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(isActive ? inkBlack : Color.gray.opacity(0.5))
+                Text(label.uppercased())
+                    .font(.system(size: 7, weight: .medium))
+                    .tracking(0.5)
+                    .foregroundColor(isActive ? inkBlack : Color.gray.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - PLACEHOLDER
-    private func placeholderView(title: String) -> some View {
-        VStack(spacing: 12) {
+    private func placeholderView(icon: String, title: String) -> some View {
+        VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "clock")
-                .font(.largeTitle)
+            Image(systemName: icon)
+                .font(.system(size: 36))
+                .foregroundColor(goldTan)
+            Text(title)
+                .font(.custom("Georgia", size: 24))
+                .italic()
+                .foregroundColor(inkBlack)
+            Text("Coming soon")
+                .font(.system(size: 11))
+                .tracking(1)
                 .foregroundColor(.secondary)
-            Text("\(title) coming soon")
-                .font(.headline)
             Spacer()
         }
+        .frame(maxWidth: .infinity)
+        .background(sandBg)
     }
 
-    // MARK: - RESET HOME
+    // MARK: - RESET
     private func resetHomeState() {
         selectedCategory = "All"
         searchText = ""
-        Task {
-            await refreshProducts()
-        }
+        Task { await refreshProducts() }
     }
 
     // MARK: - FETCH
     private func refreshProducts() async {
         isLoading = true
         errorMessage = nil
-
         do {
             try await service.fetchProducts(
                 category: selectedCategory,
@@ -235,7 +363,107 @@ struct HomeView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-
         isLoading = false
     }
+}
+
+// MARK: - PRODUCT CARD
+struct HniProductCard: View {
+    let product: Product
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            AsyncImage(url: URL(string: product.imageUrl ?? "")) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure, .empty:
+                    ZStack {
+                        Color(hex: "EDE8E0")
+                        Image(systemName: "photo")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color(hex: "C4A882").opacity(0.4))
+                    }
+                @unknown default:
+                    Color(hex: "EDE8E0")
+                }
+            }
+            .frame(height: 200)
+            .clipped()
+            .overlay(
+                Button {
+                    // TODO: add to favourites
+                } label: {
+                    Image(systemName: "heart")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.25))
+                        .clipShape(Circle())
+                }
+                .padding(8),
+                alignment: .topTrailing
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(product.category.uppercased())
+                    .font(.system(size: 8, weight: .medium))
+                    .tracking(1)
+                    .foregroundColor(goldTan)
+
+                Text(product.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(inkBlack)
+                    .lineLimit(1)
+
+                Text("SAR \(product.price, specifier: "%.2f")")
+                    .font(.custom("Georgia", size: 14))
+                    .italic()
+                    .foregroundColor(goldTan)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(UIColor.systemBackground))
+        }
+        .background(Color(UIColor.systemBackground))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+    }
+}
+
+// MARK: - Color Hex Extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+#Preview {
+    HomeView()
 }
