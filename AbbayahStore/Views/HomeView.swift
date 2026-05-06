@@ -36,13 +36,13 @@ struct HomeView: View {
                 case .home:
                     homeContent
                 case .search:
-                    placeholderView(icon: "magnifyingglass", title: "Search")
-                case .favorites:
-                    placeholderView(icon: "heart", title: "Favourites")
+                    SearchView()
                 case .cart:
-                    placeholderView(icon: "bag", title: "Cart")
+                    CartView()
+                case .favorites:
+                    FavouritesView()
                 case .profile:
-                    placeholderView(icon: "person", title: "Profile")
+                    MyAccountView()
                 }
 
                 bottomBar
