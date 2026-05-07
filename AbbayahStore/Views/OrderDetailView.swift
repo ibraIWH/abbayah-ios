@@ -47,43 +47,116 @@ struct OrderDetailView: View {
                             .padding(.top, 20)
                             .padding(.bottom, 16)
 
-                        ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                            HStack(alignment: .top, spacing: 14) {
-                                VStack(spacing: 0) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(i < 3 ? inkBlack : Color(hex: "E8E8E4"))
-                                            .frame(width: 22, height: 22)
-                                        if i < 3 {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundColor(.white)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 0) {
+                                ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                                    HStack(spacing: 0) {
+                                        VStack(spacing: 8) {
+                                            // Circle + line row
+                                            HStack(spacing: 0) {
+                                                if i > 0 {
+                                                    Rectangle()
+                                                        .frame(height: 1)
+                                                        .foregroundColor(i <= 2 ? inkBlack : borderColor)
+                                                        .frame(width: 40)
+                                                }
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(i < 3 ? inkBlack : Color(hex: "E8E8E4"))
+                                                        .frame(width: 24, height: 24)
+                                                    if i < 3 {
+                                                        Image(systemName: "checkmark")
+                                                            .font(.system(size: 9, weight: .bold))
+                                                            .foregroundColor(.white)
+                                                    }
+                                                }
+                                                if i < steps.count - 1 {
+                                                    Rectangle()
+                                                        .frame(height: 1)
+                                                        .foregroundColor(i < 2 ? inkBlack : borderColor)
+                                                        .frame(width: 40)
+                                                }
+                                            }
+
+                                            // Label
+                                            VStack(spacing: 2) {
+                                                Text(step)
+                                                    .font(.system(size: 10, weight: i < 3 ? .medium : .regular))
+                                                    .foregroundColor(i < 3 ? inkBlack : Color.gray.opacity(0.4))
+                                                    .multilineTextAlignment(.center)
+                                                Text(i < 3 ? "Apr \(10 + i)" : "Est. Apr 14")
+                                                    .font(.system(size: 9))
+                                                    .foregroundColor(.secondary)
+                                                    .multilineTextAlignment(.center)
+                                            }
+                                            .frame(width: 80)
                                         }
                                     }
-                                    if i < steps.count - 1 {
-                                        Rectangle()
-                                            .frame(width: 1, height: 32)
-                                            .foregroundColor(i < 2 ? inkBlack : borderColor)
-                                            .padding(.vertical, 2)
-                                    }
                                 }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(step)
-                                        .font(.system(size: 12, weight: i < 3 ? .medium : .regular))
-                                        .foregroundColor(i < 3 ? inkBlack : Color.gray.opacity(0.4))
-                                    Text(i < 3 ? "Apr \(10 + i), 2026" : "Estimated Apr 14")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.bottom, i < steps.count - 1 ? 0 : 20)
                             }
                             .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
                         }
                     }
                     .background(Color.white)
 
                     Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // ── ITEMS LIST ──────────────────────────
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("ITEMS")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(goldTan)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
+                            .padding(.bottom, 12)
+
+                        VStack(spacing: 0) {
+                            ForEach([
+                                ("Fleuri Breeze Abaya", "SAR 55.50", "EDE8E0"),
+                                ("Snow Abaya", "SAR 34.50", "F5F5F3"),
+                                ("Turkish Classic", "SAR 45.60", "E8E4DC"),
+                            ], id: \.0) { name, price, bg in
+                                HStack(spacing: 12) {
+                                    // Item info
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(name)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(inkBlack)
+                                        Text(price)
+                                            .font(.custom("Georgia", size: 13))
+                                            .italic()
+                                            .foregroundColor(goldTan)
+                                    }
+                                    Spacer()
+                                    // Small image placeholder
+                                    ZStack {
+                                        Color(hex: bg)
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(Color(hex: "C4A882").opacity(0.4))
+                                    }
+                                    .frame(width: 52, height: 64)
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .overlay(
+                                    Rectangle()
+                                        .frame(height: 0.5)
+                                        .foregroundColor(borderColor),
+                                    alignment: .bottom
+                                )
+                            }
+                        }
+                        .background(Color.white)
+                        .padding(.bottom, 8)
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Order summary
 
                     // Order summary
                     VStack(alignment: .leading, spacing: 0) {

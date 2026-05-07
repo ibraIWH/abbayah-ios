@@ -377,7 +377,7 @@ struct HniProductCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            AsyncImage(url: URL(string: product.imageUrl ?? "")) { phase in
+            AsyncImage(url: URL(string: product.imageUrl)) { phase in
                 switch phase {
                 case .success(let image):
                     image
