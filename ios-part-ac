@@ -1,0 +1,381 @@
+         .background(Color.white)
+
+                    Color.clear.frame(height: 120)
+                }
+            }
+
+            VStack(spacing: 0) {
+                Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                Button {
+                    Task { await placeOrder() }
+                } label: {
+                    Text(isPlacing ? "PLACING ORDER..." : "PLACE ORDER")
+                        .font(.system(size: 11, weight: .medium)).tracking(3)
+                        .foregroundColor(warmCream)
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .background(canPlace && !isPlacing ? brandRed : Color.gray)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canPlace || isPlacing)
+                .padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 24)
+                .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .navigationDestination(item: $placedOrder) { order in
+            OrderConfirmedView(orderNumber: order.number)
+        }
+        .onAppear {
+            loadSavedAddress()
+        }
+    }
+
+    private func field(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(.secondary)
+            TextField("", text: text)
+                .font(.system(size: 13))
+                .padding(.bottom, 10)
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+        }
+    }
+
+    private func loadSavedAddress() {
+        let d = UserDefaults.standard
+        if name.isEmpty { name = d.string(forKey: "addr_name") ?? "" }
+        if line1.isEmpty { line1 = d.string(forKey: "addr_line1") ?? "" }
+        if city.isEmpty { city = d.string(forKey: "addr_city") ?? "" }
+        if phone.isEmpty { phone = d.string(forKey: "addr_phone") ?? "" }
+    }
+
+    private func saveAddress() {
+        let d = UserDefaults.standard
+        d.set(name, forKey: "addr_name")
+        d.set(line1, forKey: "addr_line1")
+        d.set(city, forKey: "addr_city")
+        d.set(phone, forKey: "addr_phone")
+    }
+
+    private func placeOrder() async {
+        isPlacing = true
+        errorMessage = ""
+        do {
+            let order = try await OrderService.shared.placeOrder(
+                items: cart.items, name: name, line1: line1, city: city, phone: phone
+            )
+            saveAddress()
+            cart.clear()
+            placedOrder = PlacedOrder(number: order.orderNumber)
+        } catch {
+            errorMessage = "Could not place order. Please try again."
+        }
+        isPlacing = false
+    }
+}
+
+struct PlacedOrder: Identifiable, Hashable {
+    let id = UUID()
+    let number: String
+}
+FILE: ./AbbayahStore/Views/MyOrdersView.swift
+import SwiftUI
+
+struct MyOrdersView: View {
+    @EnvironmentObject private var auth: AuthService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    @State private var orders: [Order] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            if !auth.isLoggedIn {
+                emptyState(title: "Sign In to View Orders", subtitle: "Your order history will appear here.")
+            } else if isLoading {
+                ProgressView().tint(inkBlack)
+            } else if orders.isEmpty {
+                emptyState(title: "No Orders Yet", subtitle: "When you place an order,\nit will appear here.")
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        ForEach(orders) { order in
+                            NavigationLink { OrderDetailView(order: order) } label: {
+                                orderRow(order: order)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    Color.clear.frame(height: 100)
+                }
+                .refreshable { await load() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        guard auth.isLoggedIn else { isLoading = false; return }
+        isLoading = true
+        do {
+            orders = try await OrderService.shared.fetchOrders()
+        } catch {
+            print("Orders fetch error:", error)
+        }
+        isLoading = false
+    }
+
+    private func emptyState(title: String, subtitle: String) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "bag")
+                .font(.system(size: 52)).foregroundColor(goldTan.opacity(0.3))
+            Text(title).font(.custom("Georgia", size: 24)).italic().foregroundColor(inkBlack)
+            Text(subtitle).font(.system(size: 12)).foregroundColor(.secondary)
+                .multilineTextAlignment(.center).lineSpacing(4)
+        }
+    }
+
+    private func orderRow(order: Order) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(order.orderNumber)
+                        .font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                    Text(formatDate(order.createdAt))
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                }
+                Spacer()
+                statusBadge(status: order.status)
+            }
+            .padding(.horizontal, 16).padding(.top, 14)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16).padding(.vertical, 10)
+
+            HStack {
+                Text("\(order.items.count) item\(order.items.count == 1 ? "" : "s")")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                Spacer()
+                Text("SAR \(order.total, specifier: "%.2f")")
+                    .font(.custom("Georgia", size: 14)).italic().foregroundColor(goldTan)
+            }
+            .padding(.horizontal, 16).padding(.bottom, 14)
+        }
+        .background(Color.white)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+
+    private func statusBadge(status: String) -> some View {
+        let color: Color
+        let bg: Color
+        switch status {
+        case "delivered": color = Color(hex: "1B5E20"); bg = Color(hex: "E8F5E9")
+        case "shipped":   color = Color(hex: "E65100"); bg = Color(hex: "FFF3E0")
+        case "cancelled": color = Color(hex: "C62828"); bg = Color(hex: "FFEBEE")
+        default:          color = Color(hex: "8B7355"); bg = Color(hex: "F5F0E8")
+        }
+        return Text(status.uppercased())
+            .font(.system(size: 8, weight: .medium)).tracking(0.5)
+            .foregroundColor(color)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(bg)
+            .clipShape(Capsule())
+    }
+
+    private func formatDate(_ iso: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        guard let d = date else { return "" }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d, yyyy"
+        return out.string(from: d)
+    }
+}
+
+FILE: ./AbbayahStore/Views/HomeView.swift
+import SwiftUI
+
+// MARK: - Bottom Bar Tabs
+enum BottomTab {
+    case home, search, favorites, cart, profile
+}
+
+struct HomeView: View {
+
+    // MARK: - Services
+    @StateObject private var service = ProductService()
+    @Environment(\.colorScheme) private var colorScheme
+
+    // MARK: - UI State
+    @State private var selectedTab: BottomTab = .home
+    @State private var selectedCategory: String = "All"
+    @State private var searchText: String = ""
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String?
+
+    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+
+    // MARK: - Design Tokens
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                sandBg.ignoresSafeArea()
+
+                switch selectedTab {
+                case .home:
+                    homeContent
+                case .search:
+                    SearchView()
+                case .cart:
+                    CartView()
+                case .favorites:
+                    FavouritesView()
+                case .profile:
+                    MyAccountView()
+                }
+
+                bottomBar
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Image("AbyrLogoDark")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 120)
+                        .scaleEffect(1.5)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        selectedTab = .cart
+                    } label: {
+                        Image(systemName: "bag")
+                            .foregroundColor(inkBlack)
+                    }
+                }
+            }
+        }
+        .tint(.black)
+        .task {
+            await refreshProducts()
+        }
+    }
+
+    // MARK: - HOME CONTENT
+    private var homeContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+
+                // ── HERO STRIP ──────────────────────────
+                ZStack {
+                    inkBlack
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Abyr Line")
+                                .font(.custom("Georgia", size: 18))
+                                .italic()
+                                .foregroundColor(warmCream)
+                            Text("SPRING 2026")
+                                .font(.system(size: 9, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(goldTan)
+                        }
+                        Spacer()
+                        Text("SHOP →")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(Color(hex: "C4A882"))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color(hex: "C4A882").opacity(0.5), lineWidth: 0.5)
+                            )
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                }
+                .frame(height: 64)
+
+                // ── SEARCH ──────────────────────────────
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.gray.opacity(0.5))
+                    TextField("Search abayas, jalabiya...", text: $searchText)
+                        .font(.system(size: 13))
+                        .onSubmit {
+                            Task { await refreshProducts() }
+                        }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Color(hex: "F2F0EB"))
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                // ── CATEGORY CHIPS ──────────────────────
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categories, id: \.self) { category in
+                            Button {
+                                selectedCategory = category
+                                Task { await refreshProducts() }
+                            } label: {
+                                Text(category.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(1)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(
+                                        selectedCategory == category
+                                        ? inkBlack
+                                        : Color.clear
+                                    )
+                                    .foregroundColor(
+                                        selectedCategory == category
+                                        ? warmCream
+                                        : Color.gray
+                                    )
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(
+                                                selectedCategory == category
+                                                ? inkBlack
+                                                : borderColor,
+                                       

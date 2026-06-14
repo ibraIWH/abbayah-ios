@@ -1,0 +1,329 @@
+inkBlack : Color.gray.opacity(0.4))
+                                            .frame(width: 80)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 8)
+                        }
+                        .padding(.bottom, 16)
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Items list
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("ITEMS")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+
+                        ForEach(Array(order.items.enumerated()), id: \.offset) { _, item in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.name)
+                                        .font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                                    Text("Size \(item.size) · Qty \(item.quantity)")
+                                        .font(.system(size: 10)).foregroundColor(.secondary)
+                                    Text("SAR \(item.price, specifier: "%.2f")")
+                                        .font(.custom("Georgia", size: 13)).italic().foregroundColor(goldTan)
+                                }
+                                Spacer()
+                                AsyncImage(url: URL(string: item.imageUrl)) { phase in
+                                    if case .success(let image) = phase {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        Color(hex: "EDE8E0")
+                                    }
+                                }
+                                .frame(width: 52, height: 64)
+                                .clipped()
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 12)
+                            .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
+                        }
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Summary
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SUMMARY")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+
+                        summaryRow("Subtotal", "SAR \(String(format: "%.2f", order.subtotal))")
+                        summaryRow("Delivery", order.deliveryFee == 0 ? "Free" : "SAR \(String(format: "%.2f", order.deliveryFee))",
+                                   valueColor: order.deliveryFee == 0 ? Color(hex: "1B5E20") : inkBlack)
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                        HStack {
+                            Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                            Spacer()
+                            Text("SAR \(order.total, specifier: "%.2f")")
+                                .font(.custom("Georgia", size: 16)).italic().foregroundColor(goldTan)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                    }
+                    .background(Color.white)
+                    .padding(.bottom, 20)
+
+                    // Shipping address
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SHIPPING TO")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(order.shippingAddress.name).font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                            Text("\(order.shippingAddress.line1), \(order.shippingAddress.city)")
+                                .font(.system(size: 11)).foregroundColor(.secondary)
+                            if !order.shippingAddress.phone.isEmpty {
+                                Text(order.shippingAddress.phone).font(.system(size: 11)).foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 20).padding(.bottom, 20)
+                    }
+                    .background(Color.white)
+
+                    Color.clear.frame(height: 100)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+    }
+
+    private func summaryRow(_ label: String, _ value: String, valueColor: Color? = nil) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.system(size: 11)).foregroundColor(valueColor ?? inkBlack)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
+    }
+}
+FILE: ./AbbayahStore/Views/SignInView.swift
+import SwiftUI
+
+struct SignInView: View {
+    @State private var email = ""
+    @State private var password = ""
+    @State private var showSignUp = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @EnvironmentObject private var auth: AuthService
+    @Environment(\.dismiss) private var dismiss
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let brandRed = Color(hex: "5C0A14")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header
+                    ZStack {
+                        LinearGradient(colors: [Color(hex: "3D0608"), brandRed], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        VStack(spacing: 10) {
+                            Image("AbyrLogo")
+                                .resizable()
+                                .renderingMode(.original)
+                                .scaledToFit()
+                                .frame(width: 140)
+                            Text("Welcome back")
+                                .font(.system(size: 11))
+                                .tracking(3)
+                                .foregroundColor(gold.opacity(0.7))
+                                .textCase(.uppercase)
+                        }
+                        .padding(.vertical, 48)
+                    }
+
+                    // Form
+                    VStack(spacing: 20) {
+                        inputField(label: "Email", placeholder: "you@email.com", text: $email, isSecure: false)
+                        inputField(label: "Password", placeholder: "Min. 8 characters", text: $password, isSecure: true)
+
+                        HStack {
+                            Spacer()
+                            Button("Forgot password?") {}
+                                .font(.system(size: 10))
+                                .foregroundColor(goldTan)
+                        }
+
+                        // Sign In button
+                        Button {
+                            Task { await signIn() }
+                        } label: {
+                            Text(isLoading ? "SIGNING IN..." : "SIGN IN")
+                                .font(.system(size: 11, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(warmCream)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(isLoading ? Color.gray : inkBlack)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLoading)
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Divider
+                        HStack {
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                            Text("or").font(.system(size: 10)).foregroundColor(.secondary)
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                        }
+
+                        // Social buttons
+                        HStack(spacing: 12) {
+                            socialButton(label: "Google", bg: Color.white, fg: inkBlack)
+                            socialButton(label: "Facebook", bg: Color(hex: "1877F2"), fg: .white)
+                        }
+
+                        // Sign Up link
+                        HStack(spacing: 4) {
+                            Text("Don't have an account?")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Button("Create one") { showSignUp = true }
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(inkBlack)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 32)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .navigationDestination(isPresented: $showSignUp) {
+            SignUpView()
+        }
+    }
+
+    private func inputField(label: String, placeholder: String, text: Binding<String>, isSecure: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(.secondary)
+            if isSecure {
+                SecureField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            } else {
+                TextField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            }
+        }
+    }
+
+    private func socialButton(label: String, bg: Color, fg: Color) -> some View {
+        Button {} label: {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(fg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(bg)
+                .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+    // line ~115 — before the last closing }
+    private func signIn() async {
+            isLoading = true
+            errorMessage = ""
+            do {
+                _ = try await auth.login(email: email, password: password)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
+}
+
+FILE: ./AbbayahStore/Views/ProductDetailView.swift
+import SwiftUI
+
+struct ProductDetailView: View {
+    let product: Product
+
+    @EnvironmentObject private var cart: CartStore
+    @EnvironmentObject private var favourites: FavouritesService
+    @EnvironmentObject private var auth: AuthService
+
+    @State private var selectedSize: String = "M"
+    @State private var addedToCart: Bool = false
+
+    private let sizes = ["XS", "S", "M", "L", "XL"]
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let brandRed = Color(hex: "5C0A14")
+
+    var isFavourite: Bool { favourites.isFavourite(product.id) }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sandBg.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Hero image
+                    ZStack(alignment: .topTrailing) {
+                        AsyncImage(url: URL(string: product.imageUrl)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            case .empty:
+                                ZStack { Color(hex: "EDE8E0"); ProgressView().tint(goldTan) }
+                            default:
+                                ZStack {
+                                    Color(hex: "EDE8E0")
+                                    Image(systemName: "photo").font(.system(size: 40)).foregroundColor(goldTan.opacity(0.4))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity).frame(height: 420).clipped()
+
+                        if product.isOnSale {
+                            Text("SALE")
+                                .font(.system(size: 8, weight: .medium)).tracking(1)
+                                .foregroundColor(warmCream)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(brandRed).padding(16)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Category + name + price
+                        HStack(alignment: .top) {
+                 

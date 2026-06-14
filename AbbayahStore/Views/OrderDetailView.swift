@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OrderDetailView: View {
-    let order: OrderItem
+    let order: Order
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
@@ -9,186 +9,147 @@ struct OrderDetailView: View {
     private let borderColor = Color(hex: "E8E8E4")
     private let warmCream = Color(hex: "F5F0E8")
 
-    let steps = ["Order Placed", "Confirmed", "Shipped", "Delivered"]
+    private let steps = ["placed", "confirmed", "shipped", "delivered"]
+
+    private var currentStep: Int {
+        steps.firstIndex(of: order.status) ?? 0
+    }
 
     var body: some View {
         ZStack {
             sandBg.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Order ID header
+
+                    // Header
                     VStack(alignment: .leading, spacing: 4) {
                         Text("ORDER")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(goldTan)
-                        Text(order.id)
-                            .font(.custom("Georgia", size: 22))
-                            .italic()
-                            .foregroundColor(inkBlack)
-                        Text(order.date)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        Text(order.orderNumber)
+                            .font(.custom("Georgia", size: 22)).italic().foregroundColor(inkBlack)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 20)
+                    .padding(.horizontal, 20).padding(.vertical, 20)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white)
 
                     Rectangle().frame(height: 8).foregroundColor(sandBg)
 
-                    // Timeline
+                    // Horizontal timeline
                     VStack(alignment: .leading, spacing: 0) {
                         Text("DELIVERY STATUS")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(goldTan)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
-                            .padding(.bottom, 16)
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(alignment: .top, spacing: 0) {
                                 ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                                    HStack(spacing: 0) {
-                                        VStack(spacing: 8) {
-                                            // Circle + line row
-                                            HStack(spacing: 0) {
-                                                if i > 0 {
-                                                    Rectangle()
-                                                        .frame(height: 1)
-                                                        .foregroundColor(i <= 2 ? inkBlack : borderColor)
-                                                        .frame(width: 40)
-                                                }
-                                                ZStack {
-                                                    Circle()
-                                                        .fill(i < 3 ? inkBlack : Color(hex: "E8E8E4"))
-                                                        .frame(width: 24, height: 24)
-                                                    if i < 3 {
-                                                        Image(systemName: "checkmark")
-                                                            .font(.system(size: 9, weight: .bold))
-                                                            .foregroundColor(.white)
-                                                    }
-                                                }
-                                                if i < steps.count - 1 {
-                                                    Rectangle()
-                                                        .frame(height: 1)
-                                                        .foregroundColor(i < 2 ? inkBlack : borderColor)
-                                                        .frame(width: 40)
+                                    VStack(spacing: 8) {
+                                        HStack(spacing: 0) {
+                                            if i > 0 {
+                                                Rectangle().frame(height: 1)
+                                                    .foregroundColor(i <= currentStep ? inkBlack : borderColor)
+                                                    .frame(width: 40)
+                                            }
+                                            ZStack {
+                                                Circle()
+                                                    .fill(i <= currentStep ? inkBlack : Color(hex: "E8E8E4"))
+                                                    .frame(width: 24, height: 24)
+                                                if i <= currentStep {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
                                                 }
                                             }
-
-                                            // Label
-                                            VStack(spacing: 2) {
-                                                Text(step)
-                                                    .font(.system(size: 10, weight: i < 3 ? .medium : .regular))
-                                                    .foregroundColor(i < 3 ? inkBlack : Color.gray.opacity(0.4))
-                                                    .multilineTextAlignment(.center)
-                                                Text(i < 3 ? "Apr \(10 + i)" : "Est. Apr 14")
-                                                    .font(.system(size: 9))
-                                                    .foregroundColor(.secondary)
-                                                    .multilineTextAlignment(.center)
+                                            if i < steps.count - 1 {
+                                                Rectangle().frame(height: 1)
+                                                    .foregroundColor(i < currentStep ? inkBlack : borderColor)
+                                                    .frame(width: 40)
                                             }
-                                            .frame(width: 80)
                                         }
+                                        Text(step.capitalized)
+                                            .font(.system(size: 10, weight: i <= currentStep ? .medium : .regular))
+                                            .foregroundColor(i <= currentStep ? inkBlack : Color.gray.opacity(0.4))
+                                            .frame(width: 80)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
+                            .padding(.horizontal, 20).padding(.vertical, 8)
                         }
+                        .padding(.bottom, 16)
                     }
                     .background(Color.white)
 
                     Rectangle().frame(height: 8).foregroundColor(sandBg)
 
-                    // ── ITEMS LIST ──────────────────────────
+                    // Items list
                     VStack(alignment: .leading, spacing: 0) {
                         Text("ITEMS")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(goldTan)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
-                            .padding(.bottom, 12)
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
 
-                        VStack(spacing: 0) {
-                            ForEach([
-                                ("Fleuri Breeze Abaya", "SAR 55.50", "EDE8E0"),
-                                ("Snow Abaya", "SAR 34.50", "F5F5F3"),
-                                ("Turkish Classic", "SAR 45.60", "E8E4DC"),
-                            ], id: \.0) { name, price, bg in
-                                HStack(spacing: 12) {
-                                    // Item info
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(name)
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(inkBlack)
-                                        Text(price)
-                                            .font(.custom("Georgia", size: 13))
-                                            .italic()
-                                            .foregroundColor(goldTan)
-                                    }
-                                    Spacer()
-                                    // Small image placeholder
-                                    ZStack {
-                                        Color(hex: bg)
-                                        Image(systemName: "photo")
-                                            .font(.system(size: 10))
-                                            .foregroundColor(Color(hex: "C4A882").opacity(0.4))
-                                    }
-                                    .frame(width: 52, height: 64)
+                        ForEach(Array(order.items.enumerated()), id: \.offset) { _, item in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.name)
+                                        .font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                                    Text("Size \(item.size) · Qty \(item.quantity)")
+                                        .font(.system(size: 10)).foregroundColor(.secondary)
+                                    Text("SAR \(item.price, specifier: "%.2f")")
+                                        .font(.custom("Georgia", size: 13)).italic().foregroundColor(goldTan)
                                 }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .overlay(
-                                    Rectangle()
-                                        .frame(height: 0.5)
-                                        .foregroundColor(borderColor),
-                                    alignment: .bottom
-                                )
+                                Spacer()
+                                AsyncImage(url: URL(string: item.imageUrl)) { phase in
+                                    if case .success(let image) = phase {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        Color(hex: "EDE8E0")
+                                    }
+                                }
+                                .frame(width: 52, height: 64)
+                                .clipped()
                             }
+                            .padding(.horizontal, 20).padding(.vertical, 12)
+                            .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
                         }
-                        .background(Color.white)
-                        .padding(.bottom, 8)
                     }
                     .background(Color.white)
 
                     Rectangle().frame(height: 8).foregroundColor(sandBg)
 
-                    // Order summary
-
-                    // Order summary
+                    // Summary
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("ORDER SUMMARY")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(goldTan)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
-                            .padding(.bottom, 16)
+                        Text("SUMMARY")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
 
-                        VStack(spacing: 0) {
-                            ForEach(["Subtotal", "Delivery", "Total"], id: \.self) { label in
-                                HStack {
-                                    Text(label)
-                                        .font(.system(size: label == "Total" ? 13 : 11, weight: label == "Total" ? .medium : .regular))
-                                        .foregroundColor(label == "Total" ? inkBlack : .secondary)
-                                    Spacer()
-                                    Text(label == "Delivery" ? "Free" : label == "Total" ? order.total : order.total)
-                                        .font(label == "Total" ? .custom("Georgia", size: 15) : .system(size: 11))
-                                        .italic(label == "Total")
-                                        .foregroundColor(label == "Delivery" ? Color(hex: "1B5E20") : label == "Total" ? goldTan : .secondary)
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                if label != "Total" {
-                                    Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
-                                }
+                        summaryRow("Subtotal", "SAR \(String(format: "%.2f", order.subtotal))")
+                        summaryRow("Delivery", order.deliveryFee == 0 ? "Free" : "SAR \(String(format: "%.2f", order.deliveryFee))",
+                                   valueColor: order.deliveryFee == 0 ? Color(hex: "1B5E20") : inkBlack)
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                        HStack {
+                            Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                            Spacer()
+                            Text("SAR \(order.total, specifier: "%.2f")")
+                                .font(.custom("Georgia", size: 16)).italic().foregroundColor(goldTan)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                    }
+                    .background(Color.white)
+                    .padding(.bottom, 20)
+
+                    // Shipping address
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SHIPPING TO")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(order.shippingAddress.name).font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                            Text("\(order.shippingAddress.line1), \(order.shippingAddress.city)")
+                                .font(.system(size: 11)).foregroundColor(.secondary)
+                            if !order.shippingAddress.phone.isEmpty {
+                                Text(order.shippingAddress.phone).font(.system(size: 11)).foregroundColor(.secondary)
                             }
                         }
-                        .background(Color.white)
-                        .padding(.bottom, 20)
+                        .padding(.horizontal, 20).padding(.bottom, 20)
                     }
                     .background(Color.white)
 
@@ -201,12 +162,18 @@ struct OrderDetailView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Image("AbyrLogoDark")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 160)
-                    .scaleEffect(1.5)
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
             }
         }
+    }
+
+    private func summaryRow(_ label: String, _ value: String, valueColor: Color? = nil) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.system(size: 11)).foregroundColor(valueColor ?? inkBlack)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
     }
 }

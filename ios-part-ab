@@ -1,0 +1,331 @@
+k {
+                        LinearGradient(colors: [Color(hex: "3D0608"), Color(hex: "5C0A14")], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        Image("AbyrLogo")
+                            .resizable()
+                            .renderingMode(.original)
+                            .scaledToFit()
+                            .frame(width: 140)
+                            .padding(.vertical, 48)
+                    }
+
+                    VStack(spacing: 0) {
+                        // Icon
+                        ZStack {
+                            Circle()
+                                .stroke(gold, lineWidth: 1)
+                                .frame(width: 72, height: 72)
+                            Image(systemName: "envelope")
+                                .font(.system(size: 28))
+                                .foregroundColor(gold)
+                        }
+                        .padding(.top, 40)
+                        .padding(.bottom, 24)
+
+                        Text("Verify your email")
+                            .font(.custom("Georgia", size: 26))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                            .padding(.bottom, 8)
+
+                        Text("We've sent a link to")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text(email.isEmpty ? "your email" : email)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(inkBlack)
+                            .padding(.bottom, 32)
+
+                        // Steps
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("STEPS")
+                                .font(.system(size: 9, weight: .medium))
+                                .tracking(2)
+                                .foregroundColor(goldTan)
+                                .padding(.bottom, 4)
+
+                            ForEach(Array(["Open your email inbox", "Tap the verification link", "You'll be signed in automatically"].enumerated()), id: \.offset) { i, step in
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(inkBlack)
+                                            .frame(width: 20, height: 20)
+                                        Text("\(i + 1)")
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundColor(warmCream)
+                                    }
+                                    Text(step)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color.gray.opacity(0.8))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(Color(hex: "F5F2EC"))
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 28)
+
+                        // Buttons
+                        VStack(spacing: 12) {
+                            Button {
+                                // TODO: open mail app
+                            } label: {
+                                Text("OPEN EMAIL APP")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(3)
+                                    .foregroundColor(warmCream)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 52)
+                                    .background(inkBlack)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 24)
+
+                            Button {} label: {
+                                Text("Resend Link")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 24)
+                        }
+
+                        Text("Link expires in 24 hours")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.gray.opacity(0.4))
+                            .padding(.top, 16)
+                            .padding(.bottom, 40)
+                    }
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+    }
+}
+FILE: ./AbbayahStore/Views/SearchView.swift
+import SwiftUI
+
+struct SearchView: View {
+    @StateObject private var service = ProductService()
+    @State private var searchText = ""
+    @State private var selectedCategory = "All"
+    @State private var isLoading = false
+
+    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Search bar
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.gray.opacity(0.5))
+                    TextField("Search abayas, jalabiya...", text: $searchText)
+                        .font(.system(size: 13))
+                        .onSubmit { Task { await search() } }
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(Color.gray.opacity(0.4))
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Color(hex: "F2F0EB"))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(Color.white)
+
+                // Category chips
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categories, id: \.self) { cat in
+                            Button {
+                                selectedCategory = cat
+                                Task { await search() }
+                            } label: {
+                                Text(cat.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(1)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(selectedCategory == cat ? inkBlack : Color.clear)
+                                    .foregroundColor(selectedCategory == cat ? warmCream : Color.gray)
+                                    .overlay(Rectangle().stroke(selectedCategory == cat ? inkBlack : borderColor, lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
+
+                // Results
+                if isLoading {
+                    Spacer()
+                    ProgressView().tint(inkBlack)
+                    Spacer()
+                } else if service.products.isEmpty && !searchText.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
+                        Text("No results found")
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                        Text("Try a different search term")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                } else if service.products.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan.opacity(0.4))
+                        Text("Search for abayas")
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                    }
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        if !searchText.isEmpty {
+                            HStack {
+                                Text("\(service.products.count) results for \"\(searchText)\"")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                        }
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                            ForEach(service.products) { product in
+                                NavigationLink { ProductDetailView(product: product) } label: {
+                                    HniProductCard(product: product)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        Color.clear.frame(height: 100)
+                    }
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 160)
+                    .scaleEffect(1.5)
+            }
+        }
+        .task { await search() }
+    }
+
+    private func search() async {
+        isLoading = true
+        await service.fetchProducts(category: selectedCategory, search: searchText)
+        isLoading = false
+    }
+}
+FILE: ./AbbayahStore/Views/CheckoutView.swift
+import SwiftUI
+
+struct CheckoutView: View {
+    @EnvironmentObject private var cart: CartStore
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+
+    @State private var name = ""
+    @State private var line1 = ""
+    @State private var city = ""
+    @State private var phone = ""
+    @State private var isPlacing = false
+    @State private var errorMessage = ""
+    @State private var placedOrder: PlacedOrder?
+
+    var canPlace: Bool {
+        !name.isEmpty && !line1.isEmpty && !city.isEmpty && !cart.isEmpty
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sandBg.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("DELIVERY ADDRESS")
+                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+
+                    VStack(spacing: 16) {
+                        field("Full Name", text: $name)
+                        field("Address", text: $line1)
+                        field("City", text: $city)
+                        field("Phone", text: $phone)
+                    }
+                    .padding(.horizontal, 20)
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(.system(size: 11)).foregroundColor(.red)
+                            .padding(.horizontal, 20).padding(.top, 12)
+                    }
+
+                    // Summary
+                    Text("ORDER SUMMARY")
+                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        .padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 12)
+
+                    VStack(spacing: 0) {
+                        ForEach(cart.items) { item in
+                            HStack {
+                                Text("\(item.product.name) × \(item.quantity)")
+                                    .font(.system(size: 11)).foregroundColor(.secondary)
+                                Spacer()
+                                Text("SAR \(item.product.displayPrice * Double(item.quantity), specifier: "%.2f")")
+                                    .font(.system(size: 11)).foregroundColor(inkBlack)
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 8)
+                        }
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                        HStack {
+                            Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                            Spacer()
+                            Text("SAR \(cart.totalPrice, specifier: "%.2f")")
+                                .font(.custom("Georgia", size: 16)).italic().foregroundColor(goldTan)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                    }
+           

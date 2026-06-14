@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct OrderConfirmedView: View {
+    var orderNumber: String = "ABR-00000000"
+
     private let brandRed = Color(hex: "5C0A14")
     private let inkBlack = Color(hex: "1A1A1A")
     private let warmCream = Color(hex: "F5F0E8")
@@ -9,6 +11,7 @@ struct OrderConfirmedView: View {
     private let borderColor = Color(hex: "E8E8E4")
     private let gold = Color(hex: "C4A882")
 
+    @State private var goToOrders = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -18,7 +21,6 @@ struct OrderConfirmedView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Success icon
                 ZStack {
                     Circle()
                         .stroke(Color(hex: "1B5E20"), lineWidth: 1)
@@ -29,7 +31,6 @@ struct OrderConfirmedView: View {
                 }
                 .padding(.bottom, 28)
 
-                // Title
                 Text("Order Confirmed")
                     .font(.custom("Georgia", size: 30))
                     .italic()
@@ -44,17 +45,16 @@ struct OrderConfirmedView: View {
                     .lineSpacing(5)
                     .padding(.bottom, 36)
 
-                // Order number
                 VStack(spacing: 6) {
                     Text("ORDER NUMBER")
                         .font(.system(size: 9, weight: .medium))
                         .tracking(2)
                         .foregroundColor(goldTan)
-                    Text("ABR-20260001")
+                    Text(orderNumber)
                         .font(.custom("Georgia", size: 20))
                         .italic()
                         .foregroundColor(goldTan)
-                        .letterSpacing(2)
+                        .kerning(2)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
@@ -69,10 +69,11 @@ struct OrderConfirmedView: View {
 
                 Spacer()
 
-                // Buttons
                 VStack(spacing: 12) {
-                    Button {} label: {
-                        Text("TRACK MY ORDER")
+                    Button {
+                        goToOrders = true
+                    } label: {
+                        Text("SHOW MY ORDERS")
                             .font(.system(size: 11, weight: .medium))
                             .tracking(3)
                             .foregroundColor(warmCream)
@@ -83,7 +84,6 @@ struct OrderConfirmedView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        // Pop to root
                         dismiss()
                     } label: {
                         Text("CONTINUE SHOPPING")
@@ -107,11 +107,8 @@ struct OrderConfirmedView: View {
                 AbyrNavLogo()
             }
         }
-    }
-}
-
-extension Text {
-    func letterSpacing(_ spacing: CGFloat) -> some View {
-        self.kerning(spacing)
+        .navigationDestination(isPresented: $goToOrders) {
+            MyOrdersView()
+        }
     }
 }

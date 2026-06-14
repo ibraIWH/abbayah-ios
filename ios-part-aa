@@ -1,0 +1,435 @@
+FILE: ./AbbayahStore/AbbayahStoreApp.swift
+import SwiftUI
+
+@main
+struct AbbayahStoreApp: App {
+    @StateObject private var auth = AuthService.shared
+    @StateObject private var cart = CartStore.shared
+    @StateObject private var favourites = FavouritesService.shared
+
+    init() {
+        UINavigationBar.appearance().tintColor = .black
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(auth)
+                .environmentObject(cart)
+                .environmentObject(favourites)
+        }
+    }
+}
+FILE: ./AbbayahStore/DesignSystem.swift
+import SwiftUI
+
+// MARK: - Abyr Design System
+extension Color {
+    static let brandRed = Color(hex: "5C0A14")
+    static let deepRed = Color(hex: "3D0608")
+    static let abyrGold = Color(hex: "C4A882")
+    static let abyrTan = Color(hex: "8B7355")
+    static let inkBlack = Color(hex: "1A1A1A")
+    static let sandBg = Color(hex: "FAFAF8")
+    static let warmCream = Color(hex: "F5F0E8")
+    static let abyrBorder = Color(hex: "E8E8E4")
+}
+
+// MARK: - Shared Nav Logo
+struct AbyrNavLogo: View {
+    var dark: Bool = true
+    var body: some View {
+        Image(dark ? "AbyrLogoDark" : "AbyrLogo")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 160)
+            .scaleEffect(1.5)
+    }
+}
+
+// MARK: - Shared CTA Button
+struct AbyrButton: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .medium))
+                .tracking(3)
+                .foregroundColor(.warmCream)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.inkBlack)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Shared Section Header
+struct AbyrSectionHeader: View {
+    let subtitle: String
+    let title: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(subtitle.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(2)
+                .foregroundColor(.abyrTan)
+            Text(title)
+                .font(.custom("Georgia", size: 22))
+                .italic()
+                .foregroundColor(.inkBlack)
+        }
+    }
+}
+FILE: ./AbbayahStore/Models/Product.swift
+import Foundation
+
+struct Product: Identifiable, Codable, Equatable {
+    let id: String
+    let name: String
+    let price: Double
+    let salePrice: Double?
+    let imageUrl: String
+    let imageUrl2: String?
+    let category: String
+    let description: String?
+    let stock: Int?
+    let sizes: [String]?
+    let colors: [ProductColor]?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name, price, salePrice, imageUrl, imageUrl2
+        case category, description, stock, sizes, colors
+    }
+
+    var isOnSale: Bool { salePrice != nil }
+    var isSoldOut: Bool { (stock ?? 1) == 0 }
+    var displayPrice: Double { salePrice ?? price }
+}
+
+struct ProductColor: Codable, Equatable {
+    let name: String
+    let hex: String
+    let imageUrl: String?
+}
+FILE: ./AbbayahStore/Components/ProductCard.swift
+import SwiftUI
+
+struct ProductCard: View {
+    let product: Product
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+
+            AsyncImage(url: URL(string: product.imageUrl)) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemGray6))
+            }
+            .frame(maxWidth: 150)
+            .frame(height: 200)
+            .clipped()
+
+            Text(product.name)
+                .font(.headline)
+                .lineLimit(1)
+
+            Text("SAR \(product.price, specifier: "%.0f")")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: 200)
+        .frame(height: 300)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    colorScheme == .dark
+                    ? AnyShapeStyle(.ultraThinMaterial)   // 🌙 glass
+                    : AnyShapeStyle(Color(.systemBackground)) // ☀️ solid
+                )
+        )
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
+    }
+}
+FILE: ./AbbayahStore/Components/SkeletonCard.swift
+import SwiftUI
+
+struct SkeletonCard: View {
+    @State private var animate = false
+    private let borderColor = Color(hex: "E8E8E4")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                Color(hex: "EDE8E0")
+                LinearGradient(
+                    colors: [Color.clear, Color.white.opacity(0.5), Color.clear],
+                    startPoint: animate ? .leading : .trailing,
+                    endPoint: animate ? .trailing : .leading
+                )
+            }
+            .frame(height: 200)
+
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 8).frame(width: 50)
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 10).frame(maxWidth: .infinity)
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 8).frame(width: 70)
+            }
+            .padding(10)
+            .background(Color.white)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: false)) { animate = true }
+        }
+    }
+}
+FILE: ./AbbayahStore/Views/FavouritesView.swift
+import SwiftUI
+
+struct FavouritesView: View {
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var favourites: FavouritesService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            if !auth.isLoggedIn {
+                emptyState(icon: "heart", title: "Sign In to View Favourites", subtitle: "Save pieces you love\nand find them here.")
+            } else if favourites.isLoading {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                        ForEach(0..<4, id: \.self) { _ in SkeletonCard() }
+                    }
+                    .padding(.horizontal, 20).padding(.top, 16)
+                }
+            } else if favourites.products.isEmpty {
+                emptyState(icon: "heart", title: "No Favourites Yet", subtitle: "Tap the heart on any product\nto save it here.")
+            } else {
+                ScrollView(showsIndicators: false) {
+                    HStack {
+                        Text("\(favourites.products.count) pieces saved")
+                            .font(.system(size: 10)).foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                        ForEach(favourites.products) { product in
+                            NavigationLink { ProductDetailView(product: product) } label: {
+                                HniProductCard(product: product)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    Color.clear.frame(height: 100)
+                }
+                .refreshable { await favourites.fetch() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .task {
+            if auth.isLoggedIn { await favourites.fetch() }
+        }
+    }
+
+    private func emptyState(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: icon).font(.system(size: 52)).foregroundColor(goldTan.opacity(0.3))
+            Text(title).font(.custom("Georgia", size: 24)).italic().foregroundColor(inkBlack)
+            Text(subtitle).font(.system(size: 12)).foregroundColor(.secondary)
+                .multilineTextAlignment(.center).lineSpacing(4)
+            Spacer()
+        }
+    }
+}
+FILE: ./AbbayahStore/Views/AddressesView.swift
+import SwiftUI
+
+struct AddressesView: View {
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    let addresses = [
+        AddressItem(id: "1", label: "Home", name: "Ibrahim Al-Wahidi", address: "12 King Fahd Rd\nRiyadh, Saudi Arabia 11564", phone: "+966 5XX XXX XXXX", isDefault: true),
+        AddressItem(id: "2", label: "Work", name: "Ibrahim Al-Wahidi", address: "Saudi Railway HQ\nCentral Station, Riyadh", phone: "+966 5XX XXX XXXX", isDefault: false),
+    ]
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    ForEach(addresses) { address in
+                        addressCard(address: address)
+                    }
+
+                    // Add new address
+                    Button {} label: {
+                        HStack {
+                            Image(systemName: "plus")
+                                .font(.system(size: 13))
+                                .foregroundColor(goldTan)
+                            Text("Add New Address")
+                                .font(.system(size: 13))
+                                .foregroundColor(goldTan)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .overlay(Rectangle().stroke(style: StrokeStyle(lineWidth: 0.5, dash: [4])).foregroundColor(borderColor))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+
+                    Color.clear.frame(height: 100)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 160)
+                    .scaleEffect(1.5)
+            }
+        }
+    }
+
+    private func addressCard(address: AddressItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Label + default badge
+            HStack {
+                Text(address.label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(inkBlack)
+                if address.isDefault {
+                    Text("DEFAULT")
+                        .font(.system(size: 7, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(warmCream)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(inkBlack)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
+
+            // Address details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(address.name)
+                    .font(.system(size: 12))
+                    .foregroundColor(inkBlack)
+                Text(address.address)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineSpacing(3)
+                Text(address.phone)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
+
+            // Actions
+            HStack(spacing: 20) {
+                Button {} label: {
+                    Text("EDIT")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(goldTan)
+                }
+                .buttonStyle(.plain)
+
+                if !address.isDefault {
+                    Button {} label: {
+                        Text("SET DEFAULT")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(1)
+                            .foregroundColor(goldTan)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+
+                Button {} label: {
+                    Text("DELETE")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+}
+
+struct AddressItem: Identifiable {
+    let id: String
+    let label: String
+    let name: String
+    let address: String
+    let phone: String
+    let isDefault: Bool
+}
+FILE: ./AbbayahStore/Views/EmailVerifyView.swift
+import SwiftUI
+
+struct EmailVerifyView: View {
+    let email: String
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header
+                    ZStac

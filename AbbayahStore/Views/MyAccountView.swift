@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct MyAccountView: View {
-    
+    @EnvironmentObject private var auth: AuthService
+
     private let brandRed = Color(hex: "5C0A14")
     private let gold = Color(hex: "C4A882")
     private let goldTan = Color(hex: "8B7355")
@@ -27,7 +28,7 @@ struct MyAccountView: View {
                                 Circle()
                                     .fill(Color(hex: "3D0608"))
                                     .frame(width: 80, height: 80)
-                                Text("IW")
+                                Text(initials)
                                     .font(.custom("Georgia", size: 28))
                                     .italic()
                                     .foregroundColor(gold)
@@ -35,10 +36,10 @@ struct MyAccountView: View {
 
                             // Name + email
                             VStack(spacing: 4) {
-                                Text("Ibrahim Al-Wahidi")
+                                Text(auth.currentUser?.name ?? "Guest")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(warmCream)
-                                Text("ibrahim@icloud.com")
+                                Text(auth.currentUser?.email ?? "Not signed in")
                                     .font(.system(size: 11))
                                     .foregroundColor(gold.opacity(0.7))
                             }
@@ -68,25 +69,48 @@ struct MyAccountView: View {
                             menuRow(icon: "info.circle", label: "About Abyr")
                         }
 
-                        // Sign Out
-                        Button {
-                            // TODO: sign out
-                        } label: {
-                            HStack {
-                                Image(systemName: "arrow.right.square")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.red)
-                                    .frame(width: 24)
-                                Text("Sign Out")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.red)
-                                Spacer()
+                        // Sign Out / Sign In
+                        if auth.isLoggedIn {
+                            Button {
+                                auth.signOut()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.right.square")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.red)
+                                        .frame(width: 24)
+                                    Text("Sign Out")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
+                            .buttonStyle(.plain)
+                            .background(Color.white)
+                            .padding(.top, 16)
+                        } else {
+                            NavigationLink {
+                                SignInView()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.right.square")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(brandRed)
+                                        .frame(width: 24)
+                                    Text("Sign In")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(brandRed)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                            .buttonStyle(.plain)
+                            .background(Color.white)
+                            .padding(.top, 16)
                         }
-                        .background(Color.white)
-                        .padding(.top, 16)
                     }
 
                     Color.clear.frame(height: 100)
@@ -106,6 +130,14 @@ struct MyAccountView: View {
         }
     }
 
+    // MARK: - Initials for avatar
+    private var initials: String {
+        let name = auth.currentUser?.name ?? "Guest"
+        let parts = name.split(separator: " ")
+        let letters = parts.prefix(2).compactMap { $0.first }
+        return String(letters).uppercased()
+    }
+
     // MARK: - Menu Section
     private func menuSection(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -123,6 +155,8 @@ struct MyAccountView: View {
             .background(Color.white)
         }
     }
+
+    // MARK: - Menu Row Label (for NavigationLink)
     private func menuRowLabel(icon: String, label: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
@@ -148,7 +182,7 @@ struct MyAccountView: View {
         )
     }
 
-    // MARK: - Menu Row
+    // MARK: - Menu Row (plain button)
     private func menuRow(icon: String, label: String) -> some View {
         Button {
             // TODO: navigate

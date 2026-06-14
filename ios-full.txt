@@ -1,0 +1,3250 @@
+FILE: ./AbbayahStore/AbbayahStoreApp.swift
+import SwiftUI
+
+@main
+struct AbbayahStoreApp: App {
+    @StateObject private var auth = AuthService.shared
+    @StateObject private var cart = CartStore.shared
+    @StateObject private var favourites = FavouritesService.shared
+
+    init() {
+        UINavigationBar.appearance().tintColor = .black
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(auth)
+                .environmentObject(cart)
+                .environmentObject(favourites)
+        }
+    }
+}
+FILE: ./AbbayahStore/DesignSystem.swift
+import SwiftUI
+
+// MARK: - Abyr Design System
+extension Color {
+    static let brandRed = Color(hex: "5C0A14")
+    static let deepRed = Color(hex: "3D0608")
+    static let abyrGold = Color(hex: "C4A882")
+    static let abyrTan = Color(hex: "8B7355")
+    static let inkBlack = Color(hex: "1A1A1A")
+    static let sandBg = Color(hex: "FAFAF8")
+    static let warmCream = Color(hex: "F5F0E8")
+    static let abyrBorder = Color(hex: "E8E8E4")
+}
+
+// MARK: - Shared Nav Logo
+struct AbyrNavLogo: View {
+    var dark: Bool = true
+    var body: some View {
+        Image(dark ? "AbyrLogoDark" : "AbyrLogo")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 160)
+            .scaleEffect(1.5)
+    }
+}
+
+// MARK: - Shared CTA Button
+struct AbyrButton: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .medium))
+                .tracking(3)
+                .foregroundColor(.warmCream)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.inkBlack)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Shared Section Header
+struct AbyrSectionHeader: View {
+    let subtitle: String
+    let title: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(subtitle.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(2)
+                .foregroundColor(.abyrTan)
+            Text(title)
+                .font(.custom("Georgia", size: 22))
+                .italic()
+                .foregroundColor(.inkBlack)
+        }
+    }
+}
+FILE: ./AbbayahStore/Models/Product.swift
+import Foundation
+
+struct Product: Identifiable, Codable, Equatable {
+    let id: String
+    let name: String
+    let price: Double
+    let salePrice: Double?
+    let imageUrl: String
+    let imageUrl2: String?
+    let category: String
+    let description: String?
+    let stock: Int?
+    let sizes: [String]?
+    let colors: [ProductColor]?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case name, price, salePrice, imageUrl, imageUrl2
+        case category, description, stock, sizes, colors
+    }
+
+    var isOnSale: Bool { salePrice != nil }
+    var isSoldOut: Bool { (stock ?? 1) == 0 }
+    var displayPrice: Double { salePrice ?? price }
+}
+
+struct ProductColor: Codable, Equatable {
+    let name: String
+    let hex: String
+    let imageUrl: String?
+}
+FILE: ./AbbayahStore/Components/ProductCard.swift
+import SwiftUI
+
+struct ProductCard: View {
+    let product: Product
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+
+            AsyncImage(url: URL(string: product.imageUrl)) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemGray6))
+            }
+            .frame(maxWidth: 150)
+            .frame(height: 200)
+            .clipped()
+
+            Text(product.name)
+                .font(.headline)
+                .lineLimit(1)
+
+            Text("SAR \(product.price, specifier: "%.0f")")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: 200)
+        .frame(height: 300)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    colorScheme == .dark
+                    ? AnyShapeStyle(.ultraThinMaterial)   // 🌙 glass
+                    : AnyShapeStyle(Color(.systemBackground)) // ☀️ solid
+                )
+        )
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
+    }
+}
+FILE: ./AbbayahStore/Components/SkeletonCard.swift
+import SwiftUI
+
+struct SkeletonCard: View {
+    @State private var animate = false
+    private let borderColor = Color(hex: "E8E8E4")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                Color(hex: "EDE8E0")
+                LinearGradient(
+                    colors: [Color.clear, Color.white.opacity(0.5), Color.clear],
+                    startPoint: animate ? .leading : .trailing,
+                    endPoint: animate ? .trailing : .leading
+                )
+            }
+            .frame(height: 200)
+
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 8).frame(width: 50)
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 10).frame(maxWidth: .infinity)
+                RoundedRectangle(cornerRadius: 2).fill(borderColor).frame(height: 8).frame(width: 70)
+            }
+            .padding(10)
+            .background(Color.white)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: false)) { animate = true }
+        }
+    }
+}
+FILE: ./AbbayahStore/Views/FavouritesView.swift
+import SwiftUI
+
+struct FavouritesView: View {
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var favourites: FavouritesService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            if !auth.isLoggedIn {
+                emptyState(icon: "heart", title: "Sign In to View Favourites", subtitle: "Save pieces you love\nand find them here.")
+            } else if favourites.isLoading {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                        ForEach(0..<4, id: \.self) { _ in SkeletonCard() }
+                    }
+                    .padding(.horizontal, 20).padding(.top, 16)
+                }
+            } else if favourites.products.isEmpty {
+                emptyState(icon: "heart", title: "No Favourites Yet", subtitle: "Tap the heart on any product\nto save it here.")
+            } else {
+                ScrollView(showsIndicators: false) {
+                    HStack {
+                        Text("\(favourites.products.count) pieces saved")
+                            .font(.system(size: 10)).foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                        ForEach(favourites.products) { product in
+                            NavigationLink { ProductDetailView(product: product) } label: {
+                                HniProductCard(product: product)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    Color.clear.frame(height: 100)
+                }
+                .refreshable { await favourites.fetch() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .task {
+            if auth.isLoggedIn { await favourites.fetch() }
+        }
+    }
+
+    private func emptyState(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: icon).font(.system(size: 52)).foregroundColor(goldTan.opacity(0.3))
+            Text(title).font(.custom("Georgia", size: 24)).italic().foregroundColor(inkBlack)
+            Text(subtitle).font(.system(size: 12)).foregroundColor(.secondary)
+                .multilineTextAlignment(.center).lineSpacing(4)
+            Spacer()
+        }
+    }
+}
+FILE: ./AbbayahStore/Views/AddressesView.swift
+import SwiftUI
+
+struct AddressesView: View {
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    let addresses = [
+        AddressItem(id: "1", label: "Home", name: "Ibrahim Al-Wahidi", address: "12 King Fahd Rd\nRiyadh, Saudi Arabia 11564", phone: "+966 5XX XXX XXXX", isDefault: true),
+        AddressItem(id: "2", label: "Work", name: "Ibrahim Al-Wahidi", address: "Saudi Railway HQ\nCentral Station, Riyadh", phone: "+966 5XX XXX XXXX", isDefault: false),
+    ]
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    ForEach(addresses) { address in
+                        addressCard(address: address)
+                    }
+
+                    // Add new address
+                    Button {} label: {
+                        HStack {
+                            Image(systemName: "plus")
+                                .font(.system(size: 13))
+                                .foregroundColor(goldTan)
+                            Text("Add New Address")
+                                .font(.system(size: 13))
+                                .foregroundColor(goldTan)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .overlay(Rectangle().stroke(style: StrokeStyle(lineWidth: 0.5, dash: [4])).foregroundColor(borderColor))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+
+                    Color.clear.frame(height: 100)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 160)
+                    .scaleEffect(1.5)
+            }
+        }
+    }
+
+    private func addressCard(address: AddressItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Label + default badge
+            HStack {
+                Text(address.label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(inkBlack)
+                if address.isDefault {
+                    Text("DEFAULT")
+                        .font(.system(size: 7, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(warmCream)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(inkBlack)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
+
+            // Address details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(address.name)
+                    .font(.system(size: 12))
+                    .foregroundColor(inkBlack)
+                Text(address.address)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineSpacing(3)
+                Text(address.phone)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
+
+            // Actions
+            HStack(spacing: 20) {
+                Button {} label: {
+                    Text("EDIT")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(goldTan)
+                }
+                .buttonStyle(.plain)
+
+                if !address.isDefault {
+                    Button {} label: {
+                        Text("SET DEFAULT")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(1)
+                            .foregroundColor(goldTan)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+
+                Button {} label: {
+                    Text("DELETE")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+}
+
+struct AddressItem: Identifiable {
+    let id: String
+    let label: String
+    let name: String
+    let address: String
+    let phone: String
+    let isDefault: Bool
+}
+FILE: ./AbbayahStore/Views/EmailVerifyView.swift
+import SwiftUI
+
+struct EmailVerifyView: View {
+    let email: String
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header
+                    ZStack {
+                        LinearGradient(colors: [Color(hex: "3D0608"), Color(hex: "5C0A14")], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        Image("AbyrLogo")
+                            .resizable()
+                            .renderingMode(.original)
+                            .scaledToFit()
+                            .frame(width: 140)
+                            .padding(.vertical, 48)
+                    }
+
+                    VStack(spacing: 0) {
+                        // Icon
+                        ZStack {
+                            Circle()
+                                .stroke(gold, lineWidth: 1)
+                                .frame(width: 72, height: 72)
+                            Image(systemName: "envelope")
+                                .font(.system(size: 28))
+                                .foregroundColor(gold)
+                        }
+                        .padding(.top, 40)
+                        .padding(.bottom, 24)
+
+                        Text("Verify your email")
+                            .font(.custom("Georgia", size: 26))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                            .padding(.bottom, 8)
+
+                        Text("We've sent a link to")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text(email.isEmpty ? "your email" : email)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(inkBlack)
+                            .padding(.bottom, 32)
+
+                        // Steps
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("STEPS")
+                                .font(.system(size: 9, weight: .medium))
+                                .tracking(2)
+                                .foregroundColor(goldTan)
+                                .padding(.bottom, 4)
+
+                            ForEach(Array(["Open your email inbox", "Tap the verification link", "You'll be signed in automatically"].enumerated()), id: \.offset) { i, step in
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(inkBlack)
+                                            .frame(width: 20, height: 20)
+                                        Text("\(i + 1)")
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundColor(warmCream)
+                                    }
+                                    Text(step)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color.gray.opacity(0.8))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(Color(hex: "F5F2EC"))
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 28)
+
+                        // Buttons
+                        VStack(spacing: 12) {
+                            Button {
+                                // TODO: open mail app
+                            } label: {
+                                Text("OPEN EMAIL APP")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(3)
+                                    .foregroundColor(warmCream)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 52)
+                                    .background(inkBlack)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 24)
+
+                            Button {} label: {
+                                Text("Resend Link")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 24)
+                        }
+
+                        Text("Link expires in 24 hours")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.gray.opacity(0.4))
+                            .padding(.top, 16)
+                            .padding(.bottom, 40)
+                    }
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+    }
+}
+FILE: ./AbbayahStore/Views/SearchView.swift
+import SwiftUI
+
+struct SearchView: View {
+    @StateObject private var service = ProductService()
+    @State private var searchText = ""
+    @State private var selectedCategory = "All"
+    @State private var isLoading = false
+
+    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Search bar
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.gray.opacity(0.5))
+                    TextField("Search abayas, jalabiya...", text: $searchText)
+                        .font(.system(size: 13))
+                        .onSubmit { Task { await search() } }
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(Color.gray.opacity(0.4))
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Color(hex: "F2F0EB"))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(Color.white)
+
+                // Category chips
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categories, id: \.self) { cat in
+                            Button {
+                                selectedCategory = cat
+                                Task { await search() }
+                            } label: {
+                                Text(cat.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(1)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(selectedCategory == cat ? inkBlack : Color.clear)
+                                    .foregroundColor(selectedCategory == cat ? warmCream : Color.gray)
+                                    .overlay(Rectangle().stroke(selectedCategory == cat ? inkBlack : borderColor, lineWidth: 0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
+
+                // Results
+                if isLoading {
+                    Spacer()
+                    ProgressView().tint(inkBlack)
+                    Spacer()
+                } else if service.products.isEmpty && !searchText.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
+                        Text("No results found")
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                        Text("Try a different search term")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                } else if service.products.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan.opacity(0.4))
+                        Text("Search for abayas")
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                    }
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        if !searchText.isEmpty {
+                            HStack {
+                                Text("\(service.products.count) results for \"\(searchText)\"")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                        }
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
+                            ForEach(service.products) { product in
+                                NavigationLink { ProductDetailView(product: product) } label: {
+                                    HniProductCard(product: product)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        Color.clear.frame(height: 100)
+                    }
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 160)
+                    .scaleEffect(1.5)
+            }
+        }
+        .task { await search() }
+    }
+
+    private func search() async {
+        isLoading = true
+        await service.fetchProducts(category: selectedCategory, search: searchText)
+        isLoading = false
+    }
+}
+FILE: ./AbbayahStore/Views/CheckoutView.swift
+import SwiftUI
+
+struct CheckoutView: View {
+    @EnvironmentObject private var cart: CartStore
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+
+    @State private var name = ""
+    @State private var line1 = ""
+    @State private var city = ""
+    @State private var phone = ""
+    @State private var isPlacing = false
+    @State private var errorMessage = ""
+    @State private var placedOrder: PlacedOrder?
+
+    var canPlace: Bool {
+        !name.isEmpty && !line1.isEmpty && !city.isEmpty && !cart.isEmpty
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sandBg.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("DELIVERY ADDRESS")
+                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+
+                    VStack(spacing: 16) {
+                        field("Full Name", text: $name)
+                        field("Address", text: $line1)
+                        field("City", text: $city)
+                        field("Phone", text: $phone)
+                    }
+                    .padding(.horizontal, 20)
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(.system(size: 11)).foregroundColor(.red)
+                            .padding(.horizontal, 20).padding(.top, 12)
+                    }
+
+                    // Summary
+                    Text("ORDER SUMMARY")
+                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        .padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 12)
+
+                    VStack(spacing: 0) {
+                        ForEach(cart.items) { item in
+                            HStack {
+                                Text("\(item.product.name) × \(item.quantity)")
+                                    .font(.system(size: 11)).foregroundColor(.secondary)
+                                Spacer()
+                                Text("SAR \(item.product.displayPrice * Double(item.quantity), specifier: "%.2f")")
+                                    .font(.system(size: 11)).foregroundColor(inkBlack)
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 8)
+                        }
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                        HStack {
+                            Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                            Spacer()
+                            Text("SAR \(cart.totalPrice, specifier: "%.2f")")
+                                .font(.custom("Georgia", size: 16)).italic().foregroundColor(goldTan)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                    }
+                    .background(Color.white)
+
+                    Color.clear.frame(height: 120)
+                }
+            }
+
+            VStack(spacing: 0) {
+                Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                Button {
+                    Task { await placeOrder() }
+                } label: {
+                    Text(isPlacing ? "PLACING ORDER..." : "PLACE ORDER")
+                        .font(.system(size: 11, weight: .medium)).tracking(3)
+                        .foregroundColor(warmCream)
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .background(canPlace && !isPlacing ? brandRed : Color.gray)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canPlace || isPlacing)
+                .padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 24)
+                .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .navigationDestination(item: $placedOrder) { order in
+            OrderConfirmedView(orderNumber: order.number)
+        }
+        .onAppear {
+            loadSavedAddress()
+        }
+    }
+
+    private func field(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(.secondary)
+            TextField("", text: text)
+                .font(.system(size: 13))
+                .padding(.bottom, 10)
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+        }
+    }
+
+    private func loadSavedAddress() {
+        let d = UserDefaults.standard
+        if name.isEmpty { name = d.string(forKey: "addr_name") ?? "" }
+        if line1.isEmpty { line1 = d.string(forKey: "addr_line1") ?? "" }
+        if city.isEmpty { city = d.string(forKey: "addr_city") ?? "" }
+        if phone.isEmpty { phone = d.string(forKey: "addr_phone") ?? "" }
+    }
+
+    private func saveAddress() {
+        let d = UserDefaults.standard
+        d.set(name, forKey: "addr_name")
+        d.set(line1, forKey: "addr_line1")
+        d.set(city, forKey: "addr_city")
+        d.set(phone, forKey: "addr_phone")
+    }
+
+    private func placeOrder() async {
+        isPlacing = true
+        errorMessage = ""
+        do {
+            let order = try await OrderService.shared.placeOrder(
+                items: cart.items, name: name, line1: line1, city: city, phone: phone
+            )
+            saveAddress()
+            cart.clear()
+            placedOrder = PlacedOrder(number: order.orderNumber)
+        } catch {
+            errorMessage = "Could not place order. Please try again."
+        }
+        isPlacing = false
+    }
+}
+
+struct PlacedOrder: Identifiable, Hashable {
+    let id = UUID()
+    let number: String
+}
+FILE: ./AbbayahStore/Views/MyOrdersView.swift
+import SwiftUI
+
+struct MyOrdersView: View {
+    @EnvironmentObject private var auth: AuthService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    @State private var orders: [Order] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            if !auth.isLoggedIn {
+                emptyState(title: "Sign In to View Orders", subtitle: "Your order history will appear here.")
+            } else if isLoading {
+                ProgressView().tint(inkBlack)
+            } else if orders.isEmpty {
+                emptyState(title: "No Orders Yet", subtitle: "When you place an order,\nit will appear here.")
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        ForEach(orders) { order in
+                            NavigationLink { OrderDetailView(order: order) } label: {
+                                orderRow(order: order)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    Color.clear.frame(height: 100)
+                }
+                .refreshable { await load() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        guard auth.isLoggedIn else { isLoading = false; return }
+        isLoading = true
+        do {
+            orders = try await OrderService.shared.fetchOrders()
+        } catch {
+            print("Orders fetch error:", error)
+        }
+        isLoading = false
+    }
+
+    private func emptyState(title: String, subtitle: String) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "bag")
+                .font(.system(size: 52)).foregroundColor(goldTan.opacity(0.3))
+            Text(title).font(.custom("Georgia", size: 24)).italic().foregroundColor(inkBlack)
+            Text(subtitle).font(.system(size: 12)).foregroundColor(.secondary)
+                .multilineTextAlignment(.center).lineSpacing(4)
+        }
+    }
+
+    private func orderRow(order: Order) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(order.orderNumber)
+                        .font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                    Text(formatDate(order.createdAt))
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                }
+                Spacer()
+                statusBadge(status: order.status)
+            }
+            .padding(.horizontal, 16).padding(.top, 14)
+
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16).padding(.vertical, 10)
+
+            HStack {
+                Text("\(order.items.count) item\(order.items.count == 1 ? "" : "s")")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                Spacer()
+                Text("SAR \(order.total, specifier: "%.2f")")
+                    .font(.custom("Georgia", size: 14)).italic().foregroundColor(goldTan)
+            }
+            .padding(.horizontal, 16).padding(.bottom, 14)
+        }
+        .background(Color.white)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+
+    private func statusBadge(status: String) -> some View {
+        let color: Color
+        let bg: Color
+        switch status {
+        case "delivered": color = Color(hex: "1B5E20"); bg = Color(hex: "E8F5E9")
+        case "shipped":   color = Color(hex: "E65100"); bg = Color(hex: "FFF3E0")
+        case "cancelled": color = Color(hex: "C62828"); bg = Color(hex: "FFEBEE")
+        default:          color = Color(hex: "8B7355"); bg = Color(hex: "F5F0E8")
+        }
+        return Text(status.uppercased())
+            .font(.system(size: 8, weight: .medium)).tracking(0.5)
+            .foregroundColor(color)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(bg)
+            .clipShape(Capsule())
+    }
+
+    private func formatDate(_ iso: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        guard let d = date else { return "" }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d, yyyy"
+        return out.string(from: d)
+    }
+}
+
+FILE: ./AbbayahStore/Views/HomeView.swift
+import SwiftUI
+
+// MARK: - Bottom Bar Tabs
+enum BottomTab {
+    case home, search, favorites, cart, profile
+}
+
+struct HomeView: View {
+
+    // MARK: - Services
+    @StateObject private var service = ProductService()
+    @Environment(\.colorScheme) private var colorScheme
+
+    // MARK: - UI State
+    @State private var selectedTab: BottomTab = .home
+    @State private var selectedCategory: String = "All"
+    @State private var searchText: String = ""
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String?
+
+    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+
+    // MARK: - Design Tokens
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                sandBg.ignoresSafeArea()
+
+                switch selectedTab {
+                case .home:
+                    homeContent
+                case .search:
+                    SearchView()
+                case .cart:
+                    CartView()
+                case .favorites:
+                    FavouritesView()
+                case .profile:
+                    MyAccountView()
+                }
+
+                bottomBar
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Image("AbyrLogoDark")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 120)
+                        .scaleEffect(1.5)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        selectedTab = .cart
+                    } label: {
+                        Image(systemName: "bag")
+                            .foregroundColor(inkBlack)
+                    }
+                }
+            }
+        }
+        .tint(.black)
+        .task {
+            await refreshProducts()
+        }
+    }
+
+    // MARK: - HOME CONTENT
+    private var homeContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+
+                // ── HERO STRIP ──────────────────────────
+                ZStack {
+                    inkBlack
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Abyr Line")
+                                .font(.custom("Georgia", size: 18))
+                                .italic()
+                                .foregroundColor(warmCream)
+                            Text("SPRING 2026")
+                                .font(.system(size: 9, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(goldTan)
+                        }
+                        Spacer()
+                        Text("SHOP →")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(Color(hex: "C4A882"))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color(hex: "C4A882").opacity(0.5), lineWidth: 0.5)
+                            )
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                }
+                .frame(height: 64)
+
+                // ── SEARCH ──────────────────────────────
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.gray.opacity(0.5))
+                    TextField("Search abayas, jalabiya...", text: $searchText)
+                        .font(.system(size: 13))
+                        .onSubmit {
+                            Task { await refreshProducts() }
+                        }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Color(hex: "F2F0EB"))
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                // ── CATEGORY CHIPS ──────────────────────
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categories, id: \.self) { category in
+                            Button {
+                                selectedCategory = category
+                                Task { await refreshProducts() }
+                            } label: {
+                                Text(category.uppercased())
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(1)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(
+                                        selectedCategory == category
+                                        ? inkBlack
+                                        : Color.clear
+                                    )
+                                    .foregroundColor(
+                                        selectedCategory == category
+                                        ? warmCream
+                                        : Color.gray
+                                    )
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(
+                                                selectedCategory == category
+                                                ? inkBlack
+                                                : borderColor,
+                                                lineWidth: 0.5
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 16)
+
+                // ── SECTION HEADER ──────────────────────
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NEW ARRIVALS")
+                            .font(.system(size: 9, weight: .medium))
+                            .tracking(2)
+                            .foregroundColor(goldTan)
+                        Text("Featured Pieces")
+                            .font(.custom("Georgia", size: 22))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                    }
+                    Spacer()
+                    Text("VIEW ALL →")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(inkBlack)
+                        .padding(.bottom, 2)
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 0.5)
+                                .foregroundColor(inkBlack),
+                            alignment: .bottom
+                        )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+
+                // ── PRODUCT STATES ──────────────────────
+                if isLoading {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(inkBlack)
+                        Text("Loading...")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+
+                } else if let errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
+                        Text("Could not load products")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(inkBlack)
+                        Text(errorMessage)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Try Again") {
+                            Task { await refreshProducts() }
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(2)
+                        .foregroundColor(warmCream)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(inkBlack)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 60)
+
+                } else if service.products.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 36))
+                            .foregroundColor(goldTan)
+                        Text("No products found")
+                            .font(.custom("Georgia", size: 18))
+                            .italic()
+                            .foregroundColor(inkBlack)
+                        Text("Try a different category or search.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+
+                } else {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
+                        ],
+                        spacing: 16
+                    ) {
+                        ForEach(service.products) { product in
+                            NavigationLink {
+                                ProductDetailView(product: product)
+                            } label: {
+                                HniProductCard(product: product)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .animation(.easeIn(duration: 0.25), value: service.products)
+                }
+
+                Color.clear.frame(height: 100)
+            }
+        }
+        .refreshable {
+            await refreshProducts()
+        }
+    }
+
+    // MARK: - BOTTOM BAR
+    private var bottomBar: some View {
+        HStack {
+            bottomBarBtn(icon: "house", label: "Home", tab: .home)
+            bottomBarBtn(icon: "magnifyingglass", label: "Search", tab: .search)
+            bottomBarBtn(icon: "bag", label: "Cart", tab: .cart)
+            bottomBarBtn(icon: "heart", label: "Fav", tab: .favorites)
+            bottomBarBtn(icon: "person", label: "Profile", tab: .profile)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 28)
+        .background(
+            Color(UIColor.systemBackground)
+                .opacity(0.97)
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(borderColor),
+            alignment: .top
+        )
+    }
+
+    private func bottomBarBtn(icon: String, label: String, tab: BottomTab) -> some View {
+        let isActive = selectedTab == tab
+        return Button {
+            selectedTab = tab
+            if tab == .home { resetHomeState() }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: isActive ? icon + ".fill" : icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(isActive ? inkBlack : Color.gray.opacity(0.5))
+                Text(label.uppercased())
+                    .font(.system(size: 7, weight: .medium))
+                    .tracking(0.5)
+                    .foregroundColor(isActive ? inkBlack : Color.gray.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - PLACEHOLDER
+    private func placeholderView(icon: String, title: String) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: icon)
+                .font(.system(size: 36))
+                .foregroundColor(goldTan)
+            Text(title)
+                .font(.custom("Georgia", size: 24))
+                .italic()
+                .foregroundColor(inkBlack)
+            Text("Coming soon")
+                .font(.system(size: 11))
+                .tracking(1)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .background(sandBg)
+    }
+
+    // MARK: - RESET
+    private func resetHomeState() {
+        selectedCategory = "All"
+        searchText = ""
+        Task { await refreshProducts() }
+    }
+
+    // MARK: - FETCH
+    private func refreshProducts() async {
+        isLoading = true
+        errorMessage = nil
+        await service.fetchProducts(category: selectedCategory, search: searchText)
+        isLoading = false
+    }
+}
+
+// MARK: - PRODUCT CARD
+struct HniProductCard: View {
+    let product: Product
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            AsyncImage(url: URL(string: product.imageUrl)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure, .empty:
+                    ZStack {
+                        Color(hex: "EDE8E0")
+                        Image(systemName: "photo")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color(hex: "C4A882").opacity(0.4))
+                    }
+                @unknown default:
+                    Color(hex: "EDE8E0")
+                }
+            }
+            .frame(height: 200)
+            .clipped()
+            .overlay(
+                Button {
+                    // TODO: add to favourites
+                } label: {
+                    Image(systemName: "heart")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.25))
+                        .clipShape(Circle())
+                }
+                .padding(8),
+                alignment: .topTrailing
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(product.category.uppercased())
+                    .font(.system(size: 8, weight: .medium))
+                    .tracking(1)
+                    .foregroundColor(goldTan)
+
+                Text(product.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(inkBlack)
+                    .lineLimit(1)
+
+                Text("SAR \(product.price, specifier: "%.2f")")
+                    .font(.custom("Georgia", size: 14))
+                    .italic()
+                    .foregroundColor(goldTan)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(UIColor.systemBackground))
+        }
+        .background(Color(UIColor.systemBackground))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+    }
+}
+
+// MARK: - Color Hex Extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+#Preview {
+    HomeView()
+}
+FILE: ./AbbayahStore/Views/OrderDetailView.swift
+import SwiftUI
+
+struct OrderDetailView: View {
+    let order: Order
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    private let steps = ["placed", "confirmed", "shipped", "delivered"]
+
+    private var currentStep: Int {
+        steps.firstIndex(of: order.status) ?? 0
+    }
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+
+                    // Header
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ORDER")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        Text(order.orderNumber)
+                            .font(.custom("Georgia", size: 22)).italic().foregroundColor(inkBlack)
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Horizontal timeline
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("DELIVERY STATUS")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 0) {
+                                ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                                    VStack(spacing: 8) {
+                                        HStack(spacing: 0) {
+                                            if i > 0 {
+                                                Rectangle().frame(height: 1)
+                                                    .foregroundColor(i <= currentStep ? inkBlack : borderColor)
+                                                    .frame(width: 40)
+                                            }
+                                            ZStack {
+                                                Circle()
+                                                    .fill(i <= currentStep ? inkBlack : Color(hex: "E8E8E4"))
+                                                    .frame(width: 24, height: 24)
+                                                if i <= currentStep {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                                                }
+                                            }
+                                            if i < steps.count - 1 {
+                                                Rectangle().frame(height: 1)
+                                                    .foregroundColor(i < currentStep ? inkBlack : borderColor)
+                                                    .frame(width: 40)
+                                            }
+                                        }
+                                        Text(step.capitalized)
+                                            .font(.system(size: 10, weight: i <= currentStep ? .medium : .regular))
+                                            .foregroundColor(i <= currentStep ? inkBlack : Color.gray.opacity(0.4))
+                                            .frame(width: 80)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 8)
+                        }
+                        .padding(.bottom, 16)
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Items list
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("ITEMS")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+
+                        ForEach(Array(order.items.enumerated()), id: \.offset) { _, item in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.name)
+                                        .font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                                    Text("Size \(item.size) · Qty \(item.quantity)")
+                                        .font(.system(size: 10)).foregroundColor(.secondary)
+                                    Text("SAR \(item.price, specifier: "%.2f")")
+                                        .font(.custom("Georgia", size: 13)).italic().foregroundColor(goldTan)
+                                }
+                                Spacer()
+                                AsyncImage(url: URL(string: item.imageUrl)) { phase in
+                                    if case .success(let image) = phase {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        Color(hex: "EDE8E0")
+                                    }
+                                }
+                                .frame(width: 52, height: 64)
+                                .clipped()
+                            }
+                            .padding(.horizontal, 20).padding(.vertical, 12)
+                            .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
+                        }
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // Summary
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SUMMARY")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+
+                        summaryRow("Subtotal", "SAR \(String(format: "%.2f", order.subtotal))")
+                        summaryRow("Delivery", order.deliveryFee == 0 ? "Free" : "SAR \(String(format: "%.2f", order.deliveryFee))",
+                                   valueColor: order.deliveryFee == 0 ? Color(hex: "1B5E20") : inkBlack)
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                        HStack {
+                            Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                            Spacer()
+                            Text("SAR \(order.total, specifier: "%.2f")")
+                                .font(.custom("Georgia", size: 16)).italic().foregroundColor(goldTan)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                    }
+                    .background(Color.white)
+                    .padding(.bottom, 20)
+
+                    // Shipping address
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SHIPPING TO")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(order.shippingAddress.name).font(.system(size: 12, weight: .medium)).foregroundColor(inkBlack)
+                            Text("\(order.shippingAddress.line1), \(order.shippingAddress.city)")
+                                .font(.system(size: 11)).foregroundColor(.secondary)
+                            if !order.shippingAddress.phone.isEmpty {
+                                Text(order.shippingAddress.phone).font(.system(size: 11)).foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 20).padding(.bottom, 20)
+                    }
+                    .background(Color.white)
+
+                    Color.clear.frame(height: 100)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+    }
+
+    private func summaryRow(_ label: String, _ value: String, valueColor: Color? = nil) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.system(size: 11)).foregroundColor(valueColor ?? inkBlack)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
+    }
+}
+FILE: ./AbbayahStore/Views/SignInView.swift
+import SwiftUI
+
+struct SignInView: View {
+    @State private var email = ""
+    @State private var password = ""
+    @State private var showSignUp = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @EnvironmentObject private var auth: AuthService
+    @Environment(\.dismiss) private var dismiss
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let brandRed = Color(hex: "5C0A14")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header
+                    ZStack {
+                        LinearGradient(colors: [Color(hex: "3D0608"), brandRed], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        VStack(spacing: 10) {
+                            Image("AbyrLogo")
+                                .resizable()
+                                .renderingMode(.original)
+                                .scaledToFit()
+                                .frame(width: 140)
+                            Text("Welcome back")
+                                .font(.system(size: 11))
+                                .tracking(3)
+                                .foregroundColor(gold.opacity(0.7))
+                                .textCase(.uppercase)
+                        }
+                        .padding(.vertical, 48)
+                    }
+
+                    // Form
+                    VStack(spacing: 20) {
+                        inputField(label: "Email", placeholder: "you@email.com", text: $email, isSecure: false)
+                        inputField(label: "Password", placeholder: "Min. 8 characters", text: $password, isSecure: true)
+
+                        HStack {
+                            Spacer()
+                            Button("Forgot password?") {}
+                                .font(.system(size: 10))
+                                .foregroundColor(goldTan)
+                        }
+
+                        // Sign In button
+                        Button {
+                            Task { await signIn() }
+                        } label: {
+                            Text(isLoading ? "SIGNING IN..." : "SIGN IN")
+                                .font(.system(size: 11, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(warmCream)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(isLoading ? Color.gray : inkBlack)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLoading)
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Divider
+                        HStack {
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                            Text("or").font(.system(size: 10)).foregroundColor(.secondary)
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                        }
+
+                        // Social buttons
+                        HStack(spacing: 12) {
+                            socialButton(label: "Google", bg: Color.white, fg: inkBlack)
+                            socialButton(label: "Facebook", bg: Color(hex: "1877F2"), fg: .white)
+                        }
+
+                        // Sign Up link
+                        HStack(spacing: 4) {
+                            Text("Don't have an account?")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Button("Create one") { showSignUp = true }
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(inkBlack)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 32)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .navigationDestination(isPresented: $showSignUp) {
+            SignUpView()
+        }
+    }
+
+    private func inputField(label: String, placeholder: String, text: Binding<String>, isSecure: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(.secondary)
+            if isSecure {
+                SecureField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            } else {
+                TextField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            }
+        }
+    }
+
+    private func socialButton(label: String, bg: Color, fg: Color) -> some View {
+        Button {} label: {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(fg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(bg)
+                .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+    // line ~115 — before the last closing }
+    private func signIn() async {
+            isLoading = true
+            errorMessage = ""
+            do {
+                _ = try await auth.login(email: email, password: password)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
+}
+
+FILE: ./AbbayahStore/Views/ProductDetailView.swift
+import SwiftUI
+
+struct ProductDetailView: View {
+    let product: Product
+
+    @EnvironmentObject private var cart: CartStore
+    @EnvironmentObject private var favourites: FavouritesService
+    @EnvironmentObject private var auth: AuthService
+
+    @State private var selectedSize: String = "M"
+    @State private var addedToCart: Bool = false
+
+    private let sizes = ["XS", "S", "M", "L", "XL"]
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let brandRed = Color(hex: "5C0A14")
+
+    var isFavourite: Bool { favourites.isFavourite(product.id) }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sandBg.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Hero image
+                    ZStack(alignment: .topTrailing) {
+                        AsyncImage(url: URL(string: product.imageUrl)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            case .empty:
+                                ZStack { Color(hex: "EDE8E0"); ProgressView().tint(goldTan) }
+                            default:
+                                ZStack {
+                                    Color(hex: "EDE8E0")
+                                    Image(systemName: "photo").font(.system(size: 40)).foregroundColor(goldTan.opacity(0.4))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity).frame(height: 420).clipped()
+
+                        if product.isOnSale {
+                            Text("SALE")
+                                .font(.system(size: 8, weight: .medium)).tracking(1)
+                                .foregroundColor(warmCream)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(brandRed).padding(16)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Category + name + price
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(product.category.uppercased())
+                                    .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                                Text(product.name)
+                                    .font(.custom("Georgia", size: 24)).italic().foregroundColor(inkBlack).lineLimit(2)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("SAR \(product.displayPrice, specifier: "%.2f")")
+                                    .font(.custom("Georgia", size: 22)).italic().foregroundColor(goldTan)
+                                if product.isOnSale {
+                                    Text("SAR \(product.price, specifier: "%.2f")")
+                                        .font(.system(size: 11)).strikethrough().foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+
+                        // Size selector
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("SIZE")
+                                .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(.secondary)
+                            HStack(spacing: 8) {
+                                ForEach(sizes, id: \.self) { size in
+                                    Button {
+                                        selectedSize = size
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    } label: {
+                                        Text(size)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .frame(width: 44, height: 44)
+                                            .background(selectedSize == size ? inkBlack : Color.clear)
+                                            .foregroundColor(selectedSize == size ? warmCream : inkBlack)
+                                            .overlay(Rectangle().stroke(selectedSize == size ? inkBlack : borderColor, lineWidth: 0.5))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 16)
+
+                        Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+
+                        // Description
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("DESCRIPTION")
+                                .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(.secondary)
+                            Text(product.description ?? "A beautifully crafted piece from the Abyr Line collection.")
+                                .font(.system(size: 13)).foregroundColor(Color.gray.opacity(0.8)).lineSpacing(6)
+                        }
+                        .padding(.horizontal, 20).padding(.vertical, 16)
+
+                        Color.clear.frame(height: 100)
+                    }
+                }
+            }
+
+            // Sticky CTA
+            VStack(spacing: 0) {
+                Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                HStack(spacing: 12) {
+                    Button {
+                        Task {
+                            if auth.isLoggedIn { await favourites.toggle(product: product) }
+                        }
+                    } label: {
+                        Image(systemName: isFavourite ? "heart.fill" : "heart")
+                            .font(.system(size: 18))
+                            .foregroundColor(isFavourite ? brandRed : inkBlack)
+                            .frame(width: 52, height: 52)
+                            .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        guard !product.isSoldOut else { return }
+                        cart.add(product: product, size: selectedSize)
+                        withAnimation { addedToCart = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation { addedToCart = false }
+                        }
+                    } label: {
+                        Text(product.isSoldOut ? "SOLD OUT" : addedToCart ? "ADDED ✓" : "ADD TO CART")
+                            .font(.system(size: 11, weight: .medium)).tracking(3)
+                            .foregroundColor(warmCream)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(product.isSoldOut ? Color.gray : addedToCart ? Color(hex: "1B5E20") : inkBlack)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(product.isSoldOut)
+                }
+                .padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 24)
+                .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 100).scaleEffect(1.5)
+            }
+        }
+    }
+}
+FILE: ./AbbayahStore/Views/SplashView.swift
+import SwiftUI
+
+struct SplashView: View {
+    @State private var isActive = false
+    @State private var opacity = 0.0
+    @State private var scale = 0.95
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let deepRed = Color(hex: "3D0608")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        if isActive {
+            HomeView()
+        } else {
+            ZStack {
+                // Brand red background
+                LinearGradient(
+                    colors: [deepRed, brandRed],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                // Subtle gold glow
+                RadialGradient(
+                    colors: [gold.opacity(0.06), Color.clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 300
+                )
+                .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    // Logo image
+                    // Logo image
+                    Image("AbyrLogo")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 220)
+                        .opacity(opacity)
+                        .scaleEffect(scale)
+
+                    Spacer()
+
+                    // Bottom tagline + dots
+                    VStack(spacing: 8) {
+                        Text("LINE")
+                            .font(.system(size: 10, weight: .light))
+                            .tracking(8)
+                            .foregroundColor(gold.opacity(0.5))
+
+                        HStack(spacing: 6) {
+                            ForEach(0..<3) { i in
+                                Circle()
+                                    .frame(width: 4, height: 4)
+                                    .foregroundColor(gold.opacity(Double(i + 1) * 0.25))
+                            }
+                        }
+                    }
+                    .opacity(opacity)
+                    .padding(.bottom, 52)
+                }
+            }
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.9)) {
+                    opacity = 1.0
+                    scale = 1.0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation(.easeIn(duration: 0.5)) {
+                        isActive = true
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    SplashView()
+}
+FILE: ./AbbayahStore/Views/CartView.swift
+import SwiftUI
+
+struct CartView: View {
+    @EnvironmentObject private var cart: CartStore
+    @EnvironmentObject private var auth: AuthService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let brandRed = Color(hex: "5C0A14")
+
+    @State private var showCheckout = false
+    @State private var showSignIn = false
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sandBg.ignoresSafeArea()
+
+            if cart.isEmpty {
+                VStack(spacing: 20) {
+                    Spacer()
+                    Image(systemName: "bag")
+                        .font(.system(size: 52))
+                        .foregroundColor(goldTan.opacity(0.3))
+                    Text("Your Cart is Empty")
+                        .font(.custom("Georgia", size: 24))
+                        .italic()
+                        .foregroundColor(inkBlack)
+                    Text("Add products to get started.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(cart.items) { item in
+                                cartRow(item: item)
+                                Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                            }
+                        }
+                        .background(Color.white)
+                        .padding(.top, 16)
+
+                        VStack(spacing: 0) {
+                            Text("SAR \(String(format: "%.2f", cart.totalPrice >= 200 ? cart.totalPrice : cart.totalPrice + 25))")
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                            summaryRow(label: "Delivery", value: cart.totalPrice >= 200 ? "Free" : "SAR 25.00", valueColor: cart.totalPrice >= 200 ? Color(hex: "1B5E20") : inkBlack)
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+                            HStack {
+                                Text("Total")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(inkBlack)
+                                Spacer()
+                                Text("SAR \(cart.totalPrice >= 200 ? cart.totalPrice : cart.totalPrice + 25, specifier: "%.2f")")
+                                    .font(.custom("Georgia", size: 18))
+                                    .italic()
+                                    .foregroundColor(goldTan)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 14)
+                        }
+                        .background(Color.white)
+                        .padding(.top, 8)
+
+                        Color.clear.frame(height: 120)
+                    }
+                }
+
+                VStack(spacing: 0) {
+                    Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                    Button {
+                                            if auth.isLoggedIn {
+                                                showCheckout = true
+                                            } else {
+                                                showSignIn = true
+                                            }
+                                        } label: {
+                            Text(auth.isLoggedIn ? "PROCEED TO CHECKOUT" : "SIGN IN TO CHECKOUT")
+                            .font(.system(size: 11, weight: .medium))
+                            .tracking(3)
+                            .foregroundColor(warmCream)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(brandRed)
+                    }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .padding(.bottom, 90)
+                            .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
+                    }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable().renderingMode(.original).scaledToFit()
+                    .frame(width: 160).scaleEffect(1.5)
+            }
+        }
+        .navigationDestination(isPresented: $showCheckout) {
+            CheckoutView()
+        }
+        .navigationDestination(isPresented: $showSignIn) {
+                    SignInView()
+        }
+    }
+
+    private func cartRow(item: CartItem) -> some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: URL(string: item.product.imageUrl)) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    Color(hex: "EDE8E0")
+                }
+            }
+            .frame(width: 76, height: 96)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.product.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(inkBlack)
+                    .lineLimit(1)
+                Text("Size \(item.selectedSize)")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Text("SAR \(item.product.displayPrice, specifier: "%.2f")")
+                    .font(.custom("Georgia", size: 14))
+                    .italic()
+                    .foregroundColor(goldTan)
+                    .padding(.top, 4)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 12) {
+                Button {
+                    cart.remove(item: item)
+                } label: {
+                    Text("×").font(.system(size: 18)).foregroundColor(Color.gray.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+
+                HStack(spacing: 0) {
+                    Button { cart.updateQuantity(item: item, delta: -1) } label: {
+                        Text("−").font(.system(size: 16)).frame(width: 30, height: 30).foregroundColor(inkBlack)
+                    }.buttonStyle(.plain)
+                    Text("\(item.quantity)")
+                        .font(.system(size: 11)).frame(width: 30, height: 30).foregroundColor(inkBlack)
+                        .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+                    Button { cart.updateQuantity(item: item, delta: 1) } label: {
+                        Text("+").font(.system(size: 16)).frame(width: 30, height: 30).foregroundColor(inkBlack)
+                    }.buttonStyle(.plain)
+                }
+                .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+    }
+
+    private func summaryRow(label: String, value: String, valueColor: Color? = nil) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.system(size: 11)).foregroundColor(valueColor ?? inkBlack)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+}
+FILE: ./AbbayahStore/Views/SignUpView.swift
+import SwiftUI
+
+struct SignUpView: View {
+    @State private var fullName = ""
+    @State private var email = ""
+    @State private var password = ""
+    @State private var agreed = false
+    @State private var showVerify = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @EnvironmentObject private var auth: AuthService
+
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let brandRed = Color(hex: "5C0A14")
+    private let gold = Color(hex: "C4A882")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header
+                    ZStack {
+                        LinearGradient(colors: [Color(hex: "3D0608"), brandRed], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        VStack(spacing: 10) {
+                            Image("AbyrLogo")
+                                .resizable()
+                                .renderingMode(.original)
+                                .scaledToFit()
+                                .frame(width: 140)
+                            Text("Create your account")
+                                .font(.system(size: 11))
+                                .tracking(3)
+                                .foregroundColor(gold.opacity(0.7))
+                                .textCase(.uppercase)
+                        }
+                        .padding(.vertical, 48)
+                    }
+
+                    // Form
+                    VStack(spacing: 20) {
+                        inputField(label: "Full Name", placeholder: "Your name", text: $fullName, isSecure: false)
+                        inputField(label: "Email", placeholder: "you@email.com", text: $email, isSecure: false)
+                        inputField(label: "Password", placeholder: "Min. 8 characters", text: $password, isSecure: true)
+
+                        // Terms
+                        HStack(alignment: .top, spacing: 10) {
+                            Button { agreed.toggle() } label: {
+                                Image(systemName: agreed ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(agreed ? inkBlack : borderColor)
+                                    .font(.system(size: 18))
+                            }
+                            .buttonStyle(.plain)
+                            Text("I agree to the Terms & Conditions and Privacy Policy")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .lineSpacing(3)
+                        }
+
+                        // Create Account button
+                        Button {
+                            if agreed { Task { await signUp() } }
+                        } label: {
+                            Text("CREATE ACCOUNT")
+                                .font(.system(size: 11, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(warmCream)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(agreed ? inkBlack : Color.gray.opacity(0.3))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!agreed)
+                        
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Divider
+                        HStack {
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                            Text("or").font(.system(size: 10)).foregroundColor(.secondary)
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                        }
+
+                        // Social
+                        HStack(spacing: 12) {
+                            socialButton(label: "Google", bg: Color.white, fg: inkBlack)
+                            socialButton(label: "Facebook", bg: Color(hex: "1877F2"), fg: .white)
+                        }
+
+                        // Sign In link
+                        HStack(spacing: 4) {
+                            Text("Already a member?")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Button("Sign In") {}
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(inkBlack)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 32)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(.black)
+        .navigationDestination(isPresented: $showVerify) {
+            EmailVerifyView(email: email)
+        }
+    }
+
+    private func inputField(label: String, placeholder: String, text: Binding<String>, isSecure: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(.secondary)
+            if isSecure {
+                SecureField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            } else {
+                TextField(placeholder, text: text)
+                    .font(.system(size: 13))
+                    .autocapitalization(.none)
+                    .padding(.bottom, 10)
+                    .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
+            }
+        }
+    }
+
+    private func socialButton(label: String, bg: Color, fg: Color) -> some View {
+        Button {} label: {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(fg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(bg)
+                .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+    private func signUp() async {
+        isLoading = true
+        errorMessage = ""
+        do {
+            _ = try await auth.register(name: fullName, email: email, password: password)
+            showVerify = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+    
+}
+
+FILE: ./AbbayahStore/Views/MyAccountView.swift
+import SwiftUI
+
+struct MyAccountView: View {
+    @EnvironmentObject private var auth: AuthService
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let gold = Color(hex: "C4A882")
+    private let goldTan = Color(hex: "8B7355")
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let warmCream = Color(hex: "F5F0E8")
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+
+                    // ── PROFILE HEADER ──────────────────
+                    ZStack {
+                        brandRed.ignoresSafeArea()
+
+                        VStack(spacing: 12) {
+                            // Avatar
+                            ZStack {
+                                Circle()
+                                    .fill(Color(hex: "3D0608"))
+                                    .frame(width: 80, height: 80)
+                                Text(initials)
+                                    .font(.custom("Georgia", size: 28))
+                                    .italic()
+                                    .foregroundColor(gold)
+                            }
+
+                            // Name + email
+                            VStack(spacing: 4) {
+                                Text(auth.currentUser?.name ?? "Guest")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(warmCream)
+                                Text(auth.currentUser?.email ?? "Not signed in")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(gold.opacity(0.7))
+                            }
+                        }
+                        .padding(.top, 32)
+                        .padding(.bottom, 28)
+                    }
+
+                    // ── MENU ITEMS ──────────────────────
+                    VStack(spacing: 0) {
+                        menuSection(title: "Shopping") {
+                            NavigationLink { MyOrdersView() } label: { menuRowLabel(icon: "bag", label: "My Orders") }
+                            NavigationLink { FavouritesView() } label: { menuRowLabel(icon: "heart", label: "Favourites") }
+                            NavigationLink { AddressesView() } label: { menuRowLabel(icon: "mappin", label: "Addresses") }
+                            menuRow(icon: "creditcard", label: "Payment Methods")
+                        }
+
+                        menuSection(title: "Account") {
+                            menuRow(icon: "person", label: "Edit Profile")
+                            menuRow(icon: "bell", label: "Notifications")
+                            menuRow(icon: "lock", label: "Change Password")
+                        }
+
+                        menuSection(title: "Support") {
+                            menuRow(icon: "questionmark.circle", label: "FAQ")
+                            menuRow(icon: "envelope", label: "Contact Us")
+                            menuRow(icon: "info.circle", label: "About Abyr")
+                        }
+
+                        // Sign Out / Sign In
+                        if auth.isLoggedIn {
+                            Button {
+                                auth.signOut()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.right.square")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.red)
+                                        .frame(width: 24)
+                                    Text("Sign Out")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                            .buttonStyle(.plain)
+                            .background(Color.white)
+                            .padding(.top, 16)
+                        } else {
+                            NavigationLink {
+                                SignInView()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.right.square")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(brandRed)
+                                        .frame(width: 24)
+                                    Text("Sign In")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(brandRed)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                            .buttonStyle(.plain)
+                            .background(Color.white)
+                            .padding(.top, 16)
+                        }
+                    }
+
+                    Color.clear.frame(height: 100)
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("AbyrLogoDark")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 160)
+                    .scaleEffect(1.5)
+            }
+        }
+    }
+
+    // MARK: - Initials for avatar
+    private var initials: String {
+        let name = auth.currentUser?.name ?? "Guest"
+        let parts = name.split(separator: " ")
+        let letters = parts.prefix(2).compactMap { $0.first }
+        return String(letters).uppercased()
+    }
+
+    // MARK: - Menu Section
+    private func menuSection(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(2)
+                .foregroundColor(goldTan)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(Color.white)
+        }
+    }
+
+    // MARK: - Menu Row Label (for NavigationLink)
+    private func menuRowLabel(icon: String, label: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(goldTan)
+                .frame(width: 24)
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundColor(inkBlack)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11))
+                .foregroundColor(Color.gray.opacity(0.4))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(borderColor)
+                .padding(.leading, 58),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - Menu Row (plain button)
+    private func menuRow(icon: String, label: String) -> some View {
+        Button {
+            // TODO: navigate
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(goldTan)
+                    .frame(width: 24)
+
+                Text(label)
+                    .font(.system(size: 13))
+                    .foregroundColor(inkBlack)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.gray.opacity(0.4))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .overlay(
+                Rectangle()
+                    .frame(height: 0.5)
+                    .foregroundColor(borderColor)
+                    .padding(.leading, 58),
+                alignment: .bottom
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+FILE: ./AbbayahStore/Views/OrderConfirmedView.swift
+import SwiftUI
+
+struct OrderConfirmedView: View {
+    var orderNumber: String = "ABR-00000000"
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let gold = Color(hex: "C4A882")
+
+    @State private var goToOrders = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .stroke(Color(hex: "1B5E20"), lineWidth: 1)
+                        .frame(width: 80, height: 80)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundColor(Color(hex: "1B5E20"))
+                }
+                .padding(.bottom, 28)
+
+                Text("Order Confirmed")
+                    .font(.custom("Georgia", size: 30))
+                    .italic()
+                    .foregroundColor(inkBlack)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 8)
+
+                Text("Thank you for your order.\nWe'll send a confirmation to your email.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+                    .padding(.bottom, 36)
+
+                VStack(spacing: 6) {
+                    Text("ORDER NUMBER")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(2)
+                        .foregroundColor(goldTan)
+                    Text(orderNumber)
+                        .font(.custom("Georgia", size: 20))
+                        .italic()
+                        .foregroundColor(goldTan)
+                        .kerning(2)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(Color(hex: "F5F2EC"))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+
+                Text("Estimated delivery: 3 – 5 business days")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 40)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button {
+                        goToOrders = true
+                    } label: {
+                        Text("SHOW MY ORDERS")
+                            .font(.system(size: 11, weight: .medium))
+                            .tracking(3)
+                            .foregroundColor(warmCream)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(brandRed)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("CONTINUE SHOPPING")
+                            .font(.system(size: 11, weight: .medium))
+                            .tracking(3)
+                            .foregroundColor(brandRed)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .overlay(Rectangle().stroke(brandRed, lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 48)
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                AbyrNavLogo()
+            }
+        }
+        .navigationDestination(isPresented: $goToOrders) {
+            MyOrdersView()
+        }
+    }
+}
+FILE: ./AbbayahStore/ContentView.swift
+//
+//  ContentView.swift
+//  AbbayahStore
+//
+//  Created by Ibrahim Hassan on 15/06/1447 AH.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        SplashView()
+    }
+}
+
+#Preview {
+    ContentView()
+}
+FILE: ./AbbayahStore/Services/CartStore.swift
+import SwiftUI
+
+struct CartItem: Identifiable, Codable {
+    let id: UUID
+    let product: Product
+    var quantity: Int
+    var selectedSize: String
+
+    init(product: Product, quantity: Int = 1, size: String = "M") {
+        self.id = UUID()
+        self.product = product
+        self.quantity = quantity
+        self.selectedSize = size
+    }
+}
+
+class CartStore: ObservableObject {
+    static let shared = CartStore()
+
+    @Published var items: [CartItem] = []
+
+    var totalItems: Int { items.reduce(0) { $0 + $1.quantity } }
+    var totalPrice: Double { items.reduce(0) { $0 + ($1.product.price * Double($1.quantity)) } }
+    var isEmpty: Bool { items.isEmpty }
+
+    func add(product: Product, size: String) {
+        if let i = items.firstIndex(where: { $0.product.id == product.id && $0.selectedSize == size }) {
+            items[i].quantity += 1
+        } else {
+            items.append(CartItem(product: product, quantity: 1, size: size))
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    func remove(item: CartItem) {
+        items.removeAll { $0.id == item.id }
+    }
+
+    func updateQuantity(item: CartItem, delta: Int) {
+        guard let i = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let newQty = items[i].quantity + delta
+        if newQty < 1 { items.remove(at: i) } else { items[i].quantity = newQty }
+    }
+
+    func clear() { items = [] }
+}
+FILE: ./AbbayahStore/Services/OrderService.swift
+import SwiftUI
+
+struct CreatedOrder: Decodable {
+    let orderNumber: String
+    let total: Double
+}
+
+// Full order from the backend
+struct Order: Identifiable, Decodable, Hashable {
+    let id: String
+    let orderNumber: String
+    let items: [OrderLineItem]
+    let shippingAddress: ShippingAddress
+    let subtotal: Double
+    let deliveryFee: Double
+    let total: Double
+    let status: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case orderNumber, items, shippingAddress, subtotal, deliveryFee, total, status, createdAt
+    }
+
+    static func == (lhs: Order, rhs: Order) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+struct OrderLineItem: Decodable, Hashable {
+    let name: String
+    let price: Double
+    let imageUrl: String
+    let size: String
+    let quantity: Int
+}
+
+struct ShippingAddress: Decodable, Hashable {
+    let name: String
+    let line1: String
+    let city: String
+    let phone: String
+}
+
+class OrderService: ObservableObject {
+    static let shared = OrderService()
+
+    private let baseURL = "https://abbayah-backend.onrender.com/api/orders"
+
+    // MARK: - Place an order
+    func placeOrder(items: [CartItem], name: String, line1: String, city: String, phone: String) async throws -> CreatedOrder {
+        guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let itemsPayload = items.map { item in
+            return [
+                "productId": item.product.id,
+                "quantity": item.quantity,
+                "size": item.selectedSize
+            ] as [String: Any]
+        }
+
+        let body: [String: Any] = [
+            "items": itemsPayload,
+            "shippingAddress": [
+                "name": name,
+                "line1": line1,
+                "city": city,
+                "phone": phone
+            ],
+            "paymentMethod": "cod"
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 201 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CreatedOrder.self, from: data)
+    }
+
+    // MARK: - Fetch my orders
+    func fetchOrders() async throws -> [Order] {
+        guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode([Order].self, from: data)
+    }
+}
+FILE: ./AbbayahStore/Services/ProductService.swift
+import Foundation
+
+class ProductService: ObservableObject {
+    @Published var products: [Product] = []
+    @Published var isLoading = false
+    
+    func fetchProducts(category: String = "All", search: String = "") async {
+        
+        await MainActor.run { self.isLoading = true }
+        
+        // 🔴 USE YOUR DEPLOYED BACKEND
+        var urlString = "https://abbayah-backend.onrender.com/api/products?"
+
+        // Category filter
+        if category != "All" {
+            let encoded = category.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? category
+            urlString += "category=\(encoded)&"
+        }
+        
+        // Search filter
+        if !search.isEmpty {
+            let encodedSearch = search.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? search
+            urlString += "search=\(encodedSearch)&"
+        }
+
+        // Clean URL
+        urlString = urlString.trimmingCharacters(in: CharacterSet(charactersIn: "&?"))
+
+        guard let url = URL(string: urlString) else {
+            print("❌ BAD URL:", urlString)
+            return
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode([Product].self, from: data)
+            
+            await MainActor.run {
+                self.products = decoded
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run { self.isLoading = false }
+            print("❌ SEARCH API ERROR:", error)
+        }
+    }
+}
+FILE: ./AbbayahStore/Services/AuthService.swift
+import Foundation
+
+// MARK: - Response Models
+struct AuthResponse: Codable {
+    let token: String
+    let user: AuthUser
+}
+
+struct AuthUser: Codable {
+    let id: String
+    let name: String
+    let email: String
+    let role: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "id"
+        case name, email, role
+    }
+}
+
+// MARK: - Auth Service
+class AuthService: ObservableObject {
+    static let shared = AuthService()
+
+    private let baseURL = "https://abbayah-backend.onrender.com/api/auth"
+
+    @Published var currentUser: AuthUser? = nil
+    @Published var isLoggedIn: Bool = false
+
+    init() {
+        // Load saved user on app start
+        if let data = UserDefaults.standard.data(forKey: "abyr_user"),
+           let user = try? JSONDecoder().decode(AuthUser.self, from: data) {
+            self.currentUser = user
+            self.isLoggedIn = true
+        }
+    }
+
+    // MARK: - Register
+    func register(name: String, email: String, password: String) async throws -> AuthResponse {
+        let url = URL(string: "\(baseURL)/register")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "name": name,
+            "email": email,
+            "password": password
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthError.networkError
+        }
+
+        if http.statusCode == 409 {
+            throw AuthError.emailTaken
+        }
+
+        guard http.statusCode == 201 else {
+            if let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = body["message"] as? String {
+                throw AuthError.serverError(message)
+            }
+            throw AuthError.serverError("Registration failed")
+        }
+
+        let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
+        saveSession(authResponse)
+        return authResponse
+    }
+
+    // MARK: - Login
+    func login(email: String, password: String) async throws -> AuthResponse {
+        let url = URL(string: "\(baseURL)/login")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "password": password
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthError.networkError
+        }
+
+        guard http.statusCode == 200 else {
+            throw AuthError.invalidCredentials
+        }
+
+        let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
+        saveSession(authResponse)
+        return authResponse
+    }
+
+    // MARK: - Sign Out
+    func signOut() {
+        UserDefaults.standard.removeObject(forKey: "abyr_token")
+        UserDefaults.standard.removeObject(forKey: "abyr_user")
+        DispatchQueue.main.async {
+            self.currentUser = nil
+            self.isLoggedIn = false
+        }
+    }
+
+    // MARK: - Token
+    var token: String? {
+        UserDefaults.standard.string(forKey: "abyr_token")
+    }
+
+    // MARK: - Save Session
+    private func saveSession(_ response: AuthResponse) {
+        UserDefaults.standard.set(response.token, forKey: "abyr_token")
+        if let userData = try? JSONEncoder().encode(response.user) {
+            UserDefaults.standard.set(userData, forKey: "abyr_user")
+        }
+        DispatchQueue.main.async {
+            self.currentUser = response.user
+            self.isLoggedIn = true
+        }
+    }
+}
+
+// MARK: - Errors
+enum AuthError: LocalizedError {
+    case networkError
+    case invalidCredentials
+    case emailTaken
+    case serverError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .networkError: return "Network error. Please try again."
+        case .invalidCredentials: return "Invalid email or password."
+        case .emailTaken: return "This email is already registered."
+        case .serverError(let msg): return msg
+        }
+    }
+}
+FILE: ./AbbayahStore/Services/FavouritesService.swift
+import SwiftUI
+
+struct FavouriteItem: Decodable {
+    let id: String
+    let product: Product
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case product
+    }
+}
+
+class FavouritesService: ObservableObject {
+    static let shared = FavouritesService()
+
+    @Published var products: [Product] = []
+    @Published var favouriteIds: Set<String> = []
+    @Published var isLoading = false
+
+    private let baseURL = "https://abbayah-backend.onrender.com/api/favourites"
+
+    private func authedRequest(path: String = "", method: String) -> URLRequest? {
+        guard let url = URL(string: baseURL + path) else { return nil }
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return req
+    }
+
+    func fetch() async {
+        await MainActor.run { isLoading = true }
+        guard let req = authedRequest(method: "GET") else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let items = try JSONDecoder().decode([FavouriteItem].self, from: data)
+            let fetched = items.map { $0.product }
+            await MainActor.run {
+                self.products = fetched
+                self.favouriteIds = Set(fetched.map { $0.id })
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run { isLoading = false }
+            print("Favourites fetch error:", error)
+        }
+    }
+
+    func toggle(product: Product) async {
+        let id = product.id
+        if favouriteIds.contains(id) {
+            guard let req = authedRequest(path: "/\(id)", method: "DELETE") else { return }
+            _ = try? await URLSession.shared.data(for: req)
+            await MainActor.run {
+                favouriteIds.remove(id)
+                products.removeAll { $0.id == id }
+            }
+        } else {
+            guard var req = authedRequest(method: "POST") else { return }
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["productId": id])
+            _ = try? await URLSession.shared.data(for: req)
+            await MainActor.run {
+                favouriteIds.insert(id)
+                products.append(product)
+            }
+        }
+        await MainActor.run {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+    }
+
+    func isFavourite(_ id: String) -> Bool { favouriteIds.contains(id) }
+}
+FILE: ./AbbayahStoreUITests/AbbayahStoreUITestsLaunchTests.swift
+//
+//  AbbayahStoreUITestsLaunchTests.swift
+//  AbbayahStoreUITests
+//
+//  Created by Ibrahim Hassan on 15/06/1447 AH.
+//
+
+import XCTest
+
+final class AbbayahStoreUITestsLaunchTests: XCTestCase {
+
+    override class var runsForEachTargetApplicationUIConfiguration: Bool {
+        true
+    }
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    @MainActor
+    func testLaunch() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Insert steps here to perform after app launch but before taking a screenshot,
+        // such as logging into a test account or navigating somewhere in the app
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Launch Screen"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
+FILE: ./AbbayahStoreUITests/AbbayahStoreUITests.swift
+//
+//  AbbayahStoreUITests.swift
+//  AbbayahStoreUITests
+//
+//  Created by Ibrahim Hassan on 15/06/1447 AH.
+//
+
+import XCTest
+
+final class AbbayahStoreUITests: XCTestCase {
+
+    override func setUpWithError() throws {
+        // Put setup code here. This method is called before the invocation of each test method in the class.
+
+        // In UI tests it is usually best to stop immediately when a failure occurs.
+        continueAfterFailure = false
+
+        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+    }
+
+    override func tearDownWithError() throws {
+        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    }
+
+    @MainActor
+    func testExample() throws {
+        // UI tests must launch the application that they test.
+        let app = XCUIApplication()
+        app.launch()
+
+        // Use XCTAssert and related functions to verify your tests produce the correct results.
+    }
+
+    @MainActor
+    func testLaunchPerformance() throws {
+        // This measures how long it takes to launch your application.
+        measure(metrics: [XCTApplicationLaunchMetric()]) {
+            XCUIApplication().launch()
+        }
+    }
+}
+FILE: ./AbbayahStoreTests/AbbayahStoreTests.swift
+//
+//  AbbayahStoreTests.swift
+//  AbbayahStoreTests
+//
+//  Created by Ibrahim Hassan on 15/06/1447 AH.
+//
+
+import Testing
+@testable import AbbayahStore
+
+struct AbbayahStoreTests {
+
+    @Test func example() async throws {
+        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    }
+
+}

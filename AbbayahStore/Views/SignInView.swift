@@ -4,6 +4,10 @@ struct SignInView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showSignUp = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @EnvironmentObject private var auth: AuthService
+    @Environment(\.dismiss) private var dismiss
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
@@ -50,17 +54,25 @@ struct SignInView: View {
 
                         // Sign In button
                         Button {
-                            // TODO: sign in
+                            Task { await signIn() }
                         } label: {
-                            Text("SIGN IN")
+                            Text(isLoading ? "SIGNING IN..." : "SIGN IN")
                                 .font(.system(size: 11, weight: .medium))
                                 .tracking(3)
                                 .foregroundColor(warmCream)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 52)
-                                .background(inkBlack)
+                                .background(isLoading ? Color.gray : inkBlack)
                         }
                         .buttonStyle(.plain)
+                        .disabled(isLoading)
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
 
                         // Divider
                         HStack {
@@ -131,5 +143,17 @@ struct SignInView: View {
         }
         .buttonStyle(.plain)
     }
+    // line ~115 — before the last closing }
+    private func signIn() async {
+            isLoading = true
+            errorMessage = ""
+            do {
+                _ = try await auth.login(email: email, password: password)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
 }
 

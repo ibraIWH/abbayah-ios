@@ -6,6 +6,9 @@ struct SignUpView: View {
     @State private var password = ""
     @State private var agreed = false
     @State private var showVerify = false
+    @State private var isLoading = false
+    @State private var errorMessage = ""
+    @EnvironmentObject private var auth: AuthService
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
@@ -60,7 +63,7 @@ struct SignUpView: View {
 
                         // Create Account button
                         Button {
-                            if agreed { showVerify = true }
+                            if agreed { Task { await signUp() } }
                         } label: {
                             Text("CREATE ACCOUNT")
                                 .font(.system(size: 11, weight: .medium))
@@ -72,6 +75,13 @@ struct SignUpView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(!agreed)
+                        
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
 
                         // Divider
                         HStack {
@@ -141,5 +151,17 @@ struct SignUpView: View {
         }
         .buttonStyle(.plain)
     }
+    private func signUp() async {
+        isLoading = true
+        errorMessage = ""
+        do {
+            _ = try await auth.register(name: fullName, email: email, password: password)
+            showVerify = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+    
 }
 

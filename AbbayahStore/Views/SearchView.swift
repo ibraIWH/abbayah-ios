@@ -140,7 +140,7 @@ struct SearchView: View {
 
     private func search() async {
         isLoading = true
-        try? await service.fetchProducts(category: selectedCategory, search: searchText)
+        await service.fetchProducts(category: selectedCategory, search: searchText)
         isLoading = false
     }
 }

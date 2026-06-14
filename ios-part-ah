@@ -1,0 +1,464 @@
+g, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .medium))
+                .tracking(2)
+                .foregroundColor(goldTan)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(Color.white)
+        }
+    }
+
+    // MARK: - Menu Row Label (for NavigationLink)
+    private func menuRowLabel(icon: String, label: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(goldTan)
+                .frame(width: 24)
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundColor(inkBlack)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11))
+                .foregroundColor(Color.gray.opacity(0.4))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(borderColor)
+                .padding(.leading, 58),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - Menu Row (plain button)
+    private func menuRow(icon: String, label: String) -> some View {
+        Button {
+            // TODO: navigate
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(goldTan)
+                    .frame(width: 24)
+
+                Text(label)
+                    .font(.system(size: 13))
+                    .foregroundColor(inkBlack)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.gray.opacity(0.4))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .overlay(
+                Rectangle()
+                    .frame(height: 0.5)
+                    .foregroundColor(borderColor)
+                    .padding(.leading, 58),
+                alignment: .bottom
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+FILE: ./AbbayahStore/Views/OrderConfirmedView.swift
+import SwiftUI
+
+struct OrderConfirmedView: View {
+    var orderNumber: String = "ABR-00000000"
+
+    private let brandRed = Color(hex: "5C0A14")
+    private let inkBlack = Color(hex: "1A1A1A")
+    private let warmCream = Color(hex: "F5F0E8")
+    private let goldTan = Color(hex: "8B7355")
+    private let sandBg = Color(hex: "FAFAF8")
+    private let borderColor = Color(hex: "E8E8E4")
+    private let gold = Color(hex: "C4A882")
+
+    @State private var goToOrders = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            sandBg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .stroke(Color(hex: "1B5E20"), lineWidth: 1)
+                        .frame(width: 80, height: 80)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundColor(Color(hex: "1B5E20"))
+                }
+                .padding(.bottom, 28)
+
+                Text("Order Confirmed")
+                    .font(.custom("Georgia", size: 30))
+                    .italic()
+                    .foregroundColor(inkBlack)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 8)
+
+                Text("Thank you for your order.\nWe'll send a confirmation to your email.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+                    .padding(.bottom, 36)
+
+                VStack(spacing: 6) {
+                    Text("ORDER NUMBER")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(2)
+                        .foregroundColor(goldTan)
+                    Text(orderNumber)
+                        .font(.custom("Georgia", size: 20))
+                        .italic()
+                        .foregroundColor(goldTan)
+                        .kerning(2)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(Color(hex: "F5F2EC"))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+
+                Text("Estimated delivery: 3 – 5 business days")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 40)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button {
+                        goToOrders = true
+                    } label: {
+                        Text("SHOW MY ORDERS")
+                            .font(.system(size: 11, weight: .medium))
+                            .tracking(3)
+                            .foregroundColor(warmCream)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(brandRed)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("CONTINUE SHOPPING")
+                            .font(.system(size: 11, weight: .medium))
+                            .tracking(3)
+                            .foregroundColor(brandRed)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .overlay(Rectangle().stroke(brandRed, lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 48)
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                AbyrNavLogo()
+            }
+        }
+        .navigationDestination(isPresented: $goToOrders) {
+            MyOrdersView()
+        }
+    }
+}
+FILE: ./AbbayahStore/ContentView.swift
+//
+//  ContentView.swift
+//  AbbayahStore
+//
+//  Created by Ibrahim Hassan on 15/06/1447 AH.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        SplashView()
+    }
+}
+
+#Preview {
+    ContentView()
+}
+FILE: ./AbbayahStore/Services/CartStore.swift
+import SwiftUI
+
+struct CartItem: Identifiable, Codable {
+    let id: UUID
+    let product: Product
+    var quantity: Int
+    var selectedSize: String
+
+    init(product: Product, quantity: Int = 1, size: String = "M") {
+        self.id = UUID()
+        self.product = product
+        self.quantity = quantity
+        self.selectedSize = size
+    }
+}
+
+class CartStore: ObservableObject {
+    static let shared = CartStore()
+
+    @Published var items: [CartItem] = []
+
+    var totalItems: Int { items.reduce(0) { $0 + $1.quantity } }
+    var totalPrice: Double { items.reduce(0) { $0 + ($1.product.price * Double($1.quantity)) } }
+    var isEmpty: Bool { items.isEmpty }
+
+    func add(product: Product, size: String) {
+        if let i = items.firstIndex(where: { $0.product.id == product.id && $0.selectedSize == size }) {
+            items[i].quantity += 1
+        } else {
+            items.append(CartItem(product: product, quantity: 1, size: size))
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    func remove(item: CartItem) {
+        items.removeAll { $0.id == item.id }
+    }
+
+    func updateQuantity(item: CartItem, delta: Int) {
+        guard let i = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let newQty = items[i].quantity + delta
+        if newQty < 1 { items.remove(at: i) } else { items[i].quantity = newQty }
+    }
+
+    func clear() { items = [] }
+}
+FILE: ./AbbayahStore/Services/OrderService.swift
+import SwiftUI
+
+struct CreatedOrder: Decodable {
+    let orderNumber: String
+    let total: Double
+}
+
+// Full order from the backend
+struct Order: Identifiable, Decodable, Hashable {
+    let id: String
+    let orderNumber: String
+    let items: [OrderLineItem]
+    let shippingAddress: ShippingAddress
+    let subtotal: Double
+    let deliveryFee: Double
+    let total: Double
+    let status: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case orderNumber, items, shippingAddress, subtotal, deliveryFee, total, status, createdAt
+    }
+
+    static func == (lhs: Order, rhs: Order) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+struct OrderLineItem: Decodable, Hashable {
+    let name: String
+    let price: Double
+    let imageUrl: String
+    let size: String
+    let quantity: Int
+}
+
+struct ShippingAddress: Decodable, Hashable {
+    let name: String
+    let line1: String
+    let city: String
+    let phone: String
+}
+
+class OrderService: ObservableObject {
+    static let shared = OrderService()
+
+    private let baseURL = "https://abbayah-backend.onrender.com/api/orders"
+
+    // MARK: - Place an order
+    func placeOrder(items: [CartItem], name: String, line1: String, city: String, phone: String) async throws -> CreatedOrder {
+        guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let itemsPayload = items.map { item in
+            return [
+                "productId": item.product.id,
+                "quantity": item.quantity,
+                "size": item.selectedSize
+            ] as [String: Any]
+        }
+
+        let body: [String: Any] = [
+            "items": itemsPayload,
+            "shippingAddress": [
+                "name": name,
+                "line1": line1,
+                "city": city,
+                "phone": phone
+            ],
+            "paymentMethod": "cod"
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 201 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CreatedOrder.self, from: data)
+    }
+
+    // MARK: - Fetch my orders
+    func fetchOrders() async throws -> [Order] {
+        guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode([Order].self, from: data)
+    }
+}
+FILE: ./AbbayahStore/Services/ProductService.swift
+import Foundation
+
+class ProductService: ObservableObject {
+    @Published var products: [Product] = []
+    @Published var isLoading = false
+    
+    func fetchProducts(category: String = "All", search: String = "") async {
+        
+        await MainActor.run { self.isLoading = true }
+        
+        // 🔴 USE YOUR DEPLOYED BACKEND
+        var urlString = "https://abbayah-backend.onrender.com/api/products?"
+
+        // Category filter
+        if category != "All" {
+            let encoded = category.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? category
+            urlString += "category=\(encoded)&"
+        }
+        
+        // Search filter
+        if !search.isEmpty {
+            let encodedSearch = search.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? search
+            urlString += "search=\(encodedSearch)&"
+        }
+
+        // Clean URL
+        urlString = urlString.trimmingCharacters(in: CharacterSet(charactersIn: "&?"))
+
+        guard let url = URL(string: urlString) else {
+            print("❌ BAD URL:", urlString)
+            return
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode([Product].self, from: data)
+            
+            await MainActor.run {
+                self.products = decoded
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run { self.isLoading = false }
+            print("❌ SEARCH API ERROR:", error)
+        }
+    }
+}
+FILE: ./AbbayahStore/Services/AuthService.swift
+import Foundation
+
+// MARK: - Response Models
+struct AuthResponse: Codable {
+    let token: String
+    let user: AuthUser
+}
+
+struct AuthUser: Codable {
+    let id: String
+    let name: String
+    let email: String
+    let role: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "id"
+        case name, email, role
+    }
+}
+
+// MARK: - Auth Service
+class AuthService: ObservableObject {
+    static let shared = AuthService()
+
+    private let baseURL = "https://abbayah-backend.onrender.com/api/auth"
+
+    @Published var currentUser: AuthUser? = nil
+    @Published var isLoggedIn: Bool = false
+
+    init() {
+        // Load saved user on app start
+        if let data = UserDefaults.standard.data(forKey: "abyr_user"),
+           let user = try? JSONDecoder().decode(AuthUser.self, from: data) {
+            self.currentUser = user
+            self.isLoggedIn = true
+        }
+    }
+
+    // MARK: - Register
+    func register(name: String, email: String, password: String) async throws -> AuthResponse {
+        let url = URL(string: "\(baseURL)/register")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "name": name,
+            "email": email,
+            "password": password
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            thr
