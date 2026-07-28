@@ -12,16 +12,25 @@ struct Product: Identifiable, Codable, Equatable {
     let stock: Int?
     let sizes: [String]?
     let colors: [ProductColor]?
+    let tag: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case name, price, salePrice, imageUrl, imageUrl2
-        case category, description, stock, sizes, colors
+        case category, description, stock, sizes, colors, tag
     }
 
     var isOnSale: Bool { salePrice != nil }
     var isSoldOut: Bool { (stock ?? 1) == 0 }
     var displayPrice: Double { salePrice ?? price }
+
+    var productTag: ProductTag? {
+        switch tag {
+        case "bestSeller": return .bestSeller
+        case "sellingFast": return .sellingFast
+        default: return nil
+        }
+    }
 }
 
 struct ProductColor: Codable, Equatable {

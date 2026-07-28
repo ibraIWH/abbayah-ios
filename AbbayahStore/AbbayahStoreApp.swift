@@ -5,6 +5,7 @@ struct AbbayahStoreApp: App {
     @StateObject private var auth = AuthService.shared
     @StateObject private var cart = CartStore.shared
     @StateObject private var favourites = FavouritesService.shared
+    @StateObject private var nav = NavigationCoordinator.shared
 
     init() {
         UINavigationBar.appearance().tintColor = .black
@@ -16,6 +17,7 @@ struct AbbayahStoreApp: App {
                 .environmentObject(auth)
                 .environmentObject(cart)
                 .environmentObject(favourites)
+                .environmentObject(nav)
         }
     }
 }

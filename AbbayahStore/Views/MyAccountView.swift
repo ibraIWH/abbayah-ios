@@ -3,6 +3,8 @@ import SwiftUI
 struct MyAccountView: View {
     @EnvironmentObject private var auth: AuthService
 
+    @State private var showSignOutConfirm = false
+
     private let brandRed = Color(hex: "5C0A14")
     private let gold = Color(hex: "C4A882")
     private let goldTan = Color(hex: "8B7355")
@@ -72,7 +74,7 @@ struct MyAccountView: View {
                         // Sign Out / Sign In
                         if auth.isLoggedIn {
                             Button {
-                                auth.signOut()
+                                showSignOutConfirm = true
                             } label: {
                                 HStack {
                                     Image(systemName: "arrow.right.square")
@@ -116,6 +118,16 @@ struct MyAccountView: View {
                     Color.clear.frame(height: 100)
                 }
             }
+        }
+        .confirmationDialog(
+            "Sign out of your account?",
+            isPresented: $showSignOutConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                auth.signOut()
+            }
+            Button("Cancel", role: .cancel) { }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

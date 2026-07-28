@@ -102,6 +102,7 @@ struct SignInView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayMode(.inline)
         .tint(.black)
         .navigationDestination(isPresented: $showSignUp) {
@@ -124,7 +125,7 @@ struct SignInView: View {
                 TextField(placeholder, text: text)
                     .font(.system(size: 13))
                     .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .padding(.bottom, 10)
                     .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
             }
@@ -143,17 +144,15 @@ struct SignInView: View {
         }
         .buttonStyle(.plain)
     }
-    // line ~115 — before the last closing }
     private func signIn() async {
-            isLoading = true
-            errorMessage = ""
-            do {
-                _ = try await auth.login(email: email, password: password)
-                dismiss()
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isLoading = false
+        isLoading = true
+        errorMessage = ""
+        do {
+            _ = try await auth.login(email: email, password: password)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
         }
+        isLoading = false
+    }
 }
-

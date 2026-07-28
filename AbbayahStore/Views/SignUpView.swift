@@ -113,6 +113,7 @@ struct SignUpView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .tint(.black)
+        .scrollDismissesKeyboard(.interactively)
         .navigationDestination(isPresented: $showVerify) {
             EmailVerifyView(email: email)
         }
@@ -132,7 +133,7 @@ struct SignUpView: View {
             } else {
                 TextField(placeholder, text: text)
                     .font(.system(size: 13))
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .padding(.bottom, 10)
                     .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
             }
@@ -164,4 +165,3 @@ struct SignUpView: View {
     }
     
 }
-

@@ -12,7 +12,7 @@ struct OrderConfirmedView: View {
     private let gold = Color(hex: "C4A882")
 
     @State private var goToOrders = false
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var nav: NavigationCoordinator
 
     var body: some View {
         ZStack {
@@ -84,7 +84,7 @@ struct OrderConfirmedView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        dismiss()
+                        nav.goHome()
                     } label: {
                         Text("CONTINUE SHOPPING")
                             .font(.system(size: 11, weight: .medium))

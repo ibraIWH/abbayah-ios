@@ -2,16 +2,18 @@ import SwiftUI
 
 // MARK: - Bottom Bar Tabs
 enum BottomTab {
-    case home, search, favorites, cart, profile
+    case home, search, categories, favorites, cart, profile
 }
 
 struct HomeView: View {
 
-    // MARK: - Services
     @StateObject private var service = ProductService()
+    @StateObject private var collectionService = CollectionService()
+    @StateObject private var offerService = OfferService()
+    @StateObject private var settingsService = SettingsService()
+    @EnvironmentObject private var nav: NavigationCoordinator
     @Environment(\.colorScheme) private var colorScheme
 
-    // MARK: - UI State
     @State private var selectedTab: BottomTab = .home
     @State private var selectedCategory: String = "All"
     @State private var searchText: String = ""
@@ -20,270 +22,394 @@ struct HomeView: View {
 
     private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
 
-    // MARK: - Design Tokens
     private let inkBlack = Color(hex: "1A1A1A")
     private let warmCream = Color(hex: "F5F0E8")
     private let goldTan = Color(hex: "8B7355")
+    private let gold = Color(hex: "C4A882")
     private let sandBg = Color(hex: "FAFAF8")
     private let borderColor = Color(hex: "E8E8E4")
+    private let brandRed = Color(hex: "5C0A14")
+    private let deepRed = Color(hex: "3D0608")
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                sandBg.ignoresSafeArea()
+        ZStack {
+            NavigationStack {
+                ZStack(alignment: .bottom) {
+                    sandBg.ignoresSafeArea()
 
-                switch selectedTab {
-                case .home:
-                    homeContent
-                case .search:
-                    SearchView()
-                case .cart:
-                    CartView()
-                case .favorites:
-                    FavouritesView()
-                case .profile:
-                    MyAccountView()
-                }
+                    switch selectedTab {
+                    case .home:
+                        homeContent
+                    case .search:
+                        SearchView()
+                    case .categories:
+                        CategoryView()
+                    case .cart:
+                        CartView()
+                    case .favorites:
+                        FavouritesView()
+                    case .profile:
+                        MyAccountView()
+                    }
 
-                bottomBar
-            }
-            .ignoresSafeArea(edges: .bottom)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Image("AbyrLogoDark")
-                        .resizable()
-                        .renderingMode(.original)
-                        .scaledToFit()
-                        .frame(width: 120)
-                        .scaleEffect(1.5)
+                    bottomBar
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        selectedTab = .cart
-                    } label: {
-                        Image(systemName: "bag")
-                            .foregroundColor(inkBlack)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            selectedTab = .search
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(inkBlack)
+                        }
+                        .accessibilityLabel("Search products")
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Image("AbyrLogoDark")
+                            .resizable()
+                            .renderingMode(.original)
+                            .scaledToFit()
+                            .frame(width: 120)
+                            .scaleEffect(1.5)
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            selectedTab = .cart
+                        } label: {
+                            Image(systemName: "bag")
+                                .foregroundColor(inkBlack)
+                        }
+                        .accessibilityLabel("Cart")
                     }
                 }
             }
+            .tint(.black)
+            .task {
+                // Settings first (controls hero + banner), all concurrent so nothing staggers in
+                async let s: Void = settingsService.fetchSettings()
+                async let c: Void = collectionService.fetchCollections()
+                async let o: Void = offerService.fetchOffers()
+                async let p: Void = refreshProducts()
+                _ = await (s, c, o, p)
+            }
+            .id(nav.rootID)
         }
-        .tint(.black)
-        .task {
-            await refreshProducts()
+        .onChange(of: nav.rootID) { _, _ in
+            selectedTab = .home
         }
     }
 
-    // MARK: - HOME CONTENT
     private var homeContent: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
 
-                // ── HERO STRIP ──────────────────────────
-                ZStack {
-                    inkBlack
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Abyr Line")
-                                .font(.custom("Georgia", size: 18))
-                                .italic()
-                                .foregroundColor(warmCream)
-                            Text("SPRING 2026")
-                                .font(.system(size: 9, weight: .medium))
-                                .tracking(3)
-                                .foregroundColor(goldTan)
-                        }
-                        Spacer()
-                        Text("SHOP →")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(Color(hex: "C4A882"))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color(hex: "C4A882").opacity(0.5), lineWidth: 0.5)
-                            )
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                }
-                .frame(height: 64)
+            // Pinned so it stays visible and never slides under the nav bar
+            if let news = settingsService.settings?.newsText, !news.isEmpty {
+                MarqueeText(
+                    text: news,
+                    gold: gold,
+                    textColor: warmCream
+                )
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .background(inkBlack)
+                .clipped()
+            }
 
-                // ── SEARCH ──────────────────────────────
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color.gray.opacity(0.5))
-                    TextField("Search abayas, jalabiya...", text: $searchText)
-                        .font(.system(size: 13))
-                        .onSubmit {
-                            Task { await refreshProducts() }
-                        }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(Color(hex: "F2F0EB"))
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
 
-                // ── CATEGORY CHIPS ──────────────────────
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(categories, id: \.self) { category in
-                            Button {
-                                selectedCategory = category
-                                Task { await refreshProducts() }
-                            } label: {
-                                Text(category.uppercased())
-                                    .font(.system(size: 9, weight: .medium))
-                                    .tracking(1)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 7)
-                                    .background(
-                                        selectedCategory == category
-                                        ? inkBlack
-                                        : Color.clear
-                                    )
-                                    .foregroundColor(
-                                        selectedCategory == category
-                                        ? warmCream
-                                        : Color.gray
-                                    )
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(
-                                                selectedCategory == category
-                                                ? inkBlack
-                                                : borderColor,
-                                                lineWidth: 0.5
-                                            )
-                                    )
+                    ZStack(alignment: .bottomLeading) {
+                        AsyncImage(url: URL(string: heroImageURL)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            default:
+                                ZStack {
+                                    LinearGradient(colors: [Color(hex: "6b5444"), Color(hex: "4a3a2e")],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    ProgressView().tint(gold)
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
-                    }
-                    .padding(.horizontal, 20)
-                }
-                .padding(.bottom, 16)
+                        .frame(height: 480)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
 
-                // ── SECTION HEADER ──────────────────────
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("NEW ARRIVALS")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(2)
-                            .foregroundColor(goldTan)
-                        Text("Featured Pieces")
-                            .font(.custom("Georgia", size: 22))
-                            .italic()
-                            .foregroundColor(inkBlack)
-                    }
-                    Spacer()
-                    Text("VIEW ALL →")
-                        .font(.system(size: 9, weight: .medium))
-                        .tracking(1)
-                        .foregroundColor(inkBlack)
-                        .padding(.bottom, 2)
-                        .overlay(
-                            Rectangle()
-                                .frame(height: 0.5)
-                                .foregroundColor(inkBlack),
-                            alignment: .bottom
+                        LinearGradient(
+                            colors: [Color.clear, Color.clear, Color.black.opacity(0.55)],
+                            startPoint: .top, endPoint: .bottom
                         )
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+                        .frame(height: 480)
 
-                // ── PRODUCT STATES ──────────────────────
-                if isLoading {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .tint(inkBlack)
-                        Text("Loading...")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 60)
+                        // Hero text — only once settings have loaded (prevents placeholder flash)
+                        if let hero = settingsService.settings?.hero {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(hero.eyebrow ?? "")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .tracking(4)
+                                    .foregroundColor(gold)
+                                    .padding(.bottom, 10)
+                                Text(hero.title ?? "")
+                                    .font(.custom("Georgia", size: heroTitleSize(hero.title ?? "")))
+                                    .italic()
+                                    .foregroundColor(.white)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.5)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.bottom, 4)
+                                Text(hero.subtitle ?? "")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .padding(.bottom, 18)
 
-                } else if let errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.circle")
-                            .font(.system(size: 36))
-                            .foregroundColor(goldTan)
-                        Text("Could not load products")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(inkBlack)
-                        Text(errorMessage)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("Try Again") {
-                            Task { await refreshProducts() }
+                                Button {
+                                    selectedTab = .search
+                                } label: {
+                                    Text(hero.ctaText ?? "SHOP NOW")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .tracking(3)
+                                        .foregroundColor(inkBlack)
+                                        .padding(.horizontal, 34)
+                                        .padding(.vertical, 13)
+                                        .background(warmCream)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 32)
                         }
-                        .font(.system(size: 10, weight: .medium))
-                        .tracking(2)
-                        .foregroundColor(warmCream)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(inkBlack)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 60)
 
-                } else if service.products.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 36))
-                            .foregroundColor(goldTan)
-                        Text("No products found")
-                            .font(.custom("Georgia", size: 18))
-                            .italic()
-                            .foregroundColor(inkBlack)
-                        Text("Try a different category or search.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                    sectionHeader(eyebrow: "Curated", title: "Shop by Collection", showLink: false)
+                    if collectionService.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView().tint(inkBlack)
+                            Spacer()
+                        }
+                        .frame(height: 158)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 9) {
+                                ForEach(collectionService.collections) { coll in
+                                    collectionPill(title: coll.name, image: coll.imageUrl ?? "")
+                                }
+                            }
+                            .padding(.horizontal, 18)
+                        }
+                        .padding(.bottom, 6)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 60)
 
-                } else {
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 12),
-                            GridItem(.flexible(), spacing: 12)
-                        ],
-                        spacing: 16
-                    ) {
+                    sectionHeader(eyebrow: "Don't Miss", title: "Offers", showLink: false)
+                    if offerService.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView().tint(inkBlack)
+                            Spacer()
+                        }
+                        .frame(height: 180)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(offerService.offers) { offer in
+                                    offerCard(title: offer.title, badge: offer.badgeText ?? "", image: offer.imageUrl ?? "")
+                                }
+                            }
+                            .padding(.horizontal, 18)
+                        }
+                        .padding(.bottom, 6)
+                    }
+
+                    sectionHeader(eyebrow: "Just In", title: "New Arrivals", showLink: true)
+                    horizontalProducts
+
+                    sectionHeader(eyebrow: "Limited", title: "The Summer Edit", showLink: false)
+                    promoBanner
+                        .padding(.horizontal, 18)
+                        .padding(.top, 2)
+
+                    sectionHeader(eyebrow: "Loved by You", title: "Trending Now", showLink: true)
+                    horizontalProducts
+
+                    Color.clear.frame(height: 110)
+                }
+            }
+            .refreshable {
+                async let s: Void = settingsService.fetchSettings()
+                async let c: Void = collectionService.fetchCollections()
+                async let o: Void = offerService.fetchOffers()
+                async let p: Void = refreshProducts()
+                _ = await (s, c, o, p)
+            }
+        }
+    }
+
+    private var horizontalProducts: some View {
+        Group {
+            if isLoading {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SkeletonCard().frame(width: 160)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                }
+            } else if service.products.isEmpty {
+                Text("No products yet")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                    .padding(.horizontal, 18).padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
                         ForEach(service.products) { product in
                             NavigationLink {
                                 ProductDetailView(product: product)
                             } label: {
                                 HniProductCard(product: product)
+                                    .frame(width: 160)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .animation(.easeIn(duration: 0.25), value: service.products)
+                    .padding(.horizontal, 18)
                 }
-
-                Color.clear.frame(height: 100)
             }
-        }
-        .refreshable {
-            await refreshProducts()
         }
     }
 
-    // MARK: - BOTTOM BAR
+    private func offerCard(title: String, badge: String, image: String) -> some View {
+        ZStack(alignment: .topTrailing) {
+            AsyncImage(url: URL(string: image)) { phase in
+                if case .success(let img) = phase {
+                    img.resizable().scaledToFill()
+                } else {
+                    Color(hex: "ECE6DC")
+                }
+            }
+            .frame(width: 150, height: 180)
+            .clipped()
+
+            LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
+                           startPoint: .center, endPoint: .bottom)
+                .frame(width: 150, height: 180)
+
+            if !badge.isEmpty {
+                Text(badge)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(warmCream)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(brandRed)
+                    .padding(8)
+            }
+
+            VStack {
+                Spacer()
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.bottom, 12)
+            }
+            .frame(width: 150, height: 180)
+        }
+        .frame(width: 150, height: 180)
+    }
+
+    private func sectionHeader(eyebrow: String, title: String, showLink: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(eyebrow.uppercased())
+                    .font(.system(size: 9, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(goldTan)
+                Text(title)
+                    .font(.custom("Georgia", size: 22))
+                    .italic()
+                    .foregroundColor(inkBlack)
+            }
+            Spacer()
+            if showLink {
+                Text("VIEW ALL →")
+                    .font(.system(size: 9, weight: .medium))
+                    .tracking(1)
+                    .foregroundColor(inkBlack)
+                    .padding(.bottom, 2)
+                    .overlay(
+                        Rectangle().frame(height: 0.5).foregroundColor(inkBlack),
+                        alignment: .bottom
+                    )
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 28)
+        .padding(.bottom, 14)
+    }
+
+    private func collectionPill(title: String, image: String) -> some View {
+        Button {
+            selectedTab = .search
+        } label: {
+            ZStack(alignment: .bottom) {
+                AsyncImage(url: URL(string: image)) { phase in
+                    if case .success(let img) = phase {
+                        img.resizable().scaledToFill()
+                    } else {
+                        Color(hex: "D8CFC2")
+                    }
+                }
+                .frame(width: 120, height: 158)
+                .clipped()
+
+                LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
+                               startPoint: .center, endPoint: .bottom)
+                    .frame(width: 120, height: 158)
+
+                Text(title)
+                    .font(.custom("Georgia", size: 15))
+                    .italic()
+                    .foregroundColor(.white)
+                    .padding(.bottom, 11)
+            }
+            .frame(width: 120, height: 158)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var promoBanner: some View {
+        ZStack(alignment: .leading) {
+            LinearGradient(colors: [deepRed, brandRed],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("CODE B2G3")
+                    .font(.system(size: 8, weight: .medium))
+                    .tracking(3)
+                    .foregroundColor(gold)
+                    .padding(.bottom, 7)
+                Text("Buy 2")
+                    .font(.custom("Georgia", size: 25))
+                    .italic()
+                    .foregroundColor(warmCream)
+                Text("Get 3rd Free")
+                    .font(.custom("Georgia", size: 25))
+                    .italic()
+                    .foregroundColor(warmCream)
+                    .padding(.bottom, 3)
+                Text("On all summer abayas")
+                    .font(.system(size: 9))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(.horizontal, 22)
+        }
+        .frame(height: 140)
+    }
+
     private var bottomBar: some View {
         HStack {
             bottomBarBtn(icon: "house", label: "Home", tab: .home)
-            bottomBarBtn(icon: "magnifyingglass", label: "Search", tab: .search)
+            bottomBarBtn(icon: "square.grid.2x2", label: "Shop", tab: .categories)
             bottomBarBtn(icon: "bag", label: "Cart", tab: .cart)
             bottomBarBtn(icon: "heart", label: "Fav", tab: .favorites)
             bottomBarBtn(icon: "person", label: "Profile", tab: .profile)
@@ -296,9 +422,7 @@ struct HomeView: View {
                 .ignoresSafeArea(edges: .bottom)
         )
         .overlay(
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(borderColor),
+            Rectangle().frame(height: 0.5).foregroundColor(borderColor),
             alignment: .top
         )
     }
@@ -323,35 +447,28 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - PLACEHOLDER
-    private func placeholderView(icon: String, title: String) -> some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 36))
-                .foregroundColor(goldTan)
-            Text(title)
-                .font(.custom("Georgia", size: 24))
-                .italic()
-                .foregroundColor(inkBlack)
-            Text("Coming soon")
-                .font(.system(size: 11))
-                .tracking(1)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .background(sandBg)
-    }
-
-    // MARK: - RESET
     private func resetHomeState() {
         selectedCategory = "All"
         searchText = ""
         Task { await refreshProducts() }
     }
 
-    // MARK: - FETCH
+    /// The hero title is set from the admin panel, so its length varies a lot.
+    /// Short titles get a smaller size so a single word can't swallow the hero.
+    private func heroTitleSize(_ title: String) -> CGFloat {
+        switch title.count {
+        case 0...6:   return 28
+        case 7...14:  return 34
+        case 15...24: return 40
+        default:      return 44
+        }
+    }
+
+    // Hero image: only the backend image. Empty → shows the gradient placeholder (no stock photo).
+    private var heroImageURL: String {
+        settingsService.settings?.hero?.imageUrl ?? ""
+    }
+
     private func refreshProducts() async {
         isLoading = true
         errorMessage = nil
@@ -367,9 +484,13 @@ struct HniProductCard: View {
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
+    private let gold = Color(hex: "C4A882")
+    private let brandRed = Color(hex: "5C0A14")
+    private let warmCream = Color(hex: "F5F0E8")
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack(alignment: .bottom) {
+            // Image
             AsyncImage(url: URL(string: product.imageUrl)) { phase in
                 switch phase {
                 case .success(let image):
@@ -380,53 +501,124 @@ struct HniProductCard: View {
                     ZStack {
                         Color(hex: "EDE8E0")
                         Image(systemName: "photo")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(hex: "C4A882").opacity(0.4))
+                            .font(.system(size: 28))
+                            .foregroundColor(gold.opacity(0.4))
                     }
                 @unknown default:
                     Color(hex: "EDE8E0")
                 }
             }
-            .frame(height: 200)
+            .frame(height: 280)
+            .frame(maxWidth: .infinity)
             .clipped()
-            .overlay(
-                Button {
-                    // TODO: add to favourites
-                } label: {
-                    Image(systemName: "heart")
-                        .font(.system(size: 13))
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background(Color.black.opacity(0.25))
-                        .clipShape(Circle())
-                }
-                .padding(8),
-                alignment: .topTrailing
-            )
 
+            // Bottom gradient for text legibility
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.15), Color.black.opacity(0.65)],
+                startPoint: .center, endPoint: .bottom
+            )
+            .frame(height: 280)
+
+            // Text overlay (category, name, price)
             VStack(alignment: .leading, spacing: 4) {
                 Text(product.category.uppercased())
                     .font(.system(size: 8, weight: .medium))
-                    .tracking(1)
-                    .foregroundColor(goldTan)
+                    .tracking(1.5)
+                    .foregroundColor(gold)
 
                 Text(product.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(inkBlack)
+                    .font(.custom("Georgia", size: 16))
+                    .italic()
+                    .foregroundColor(.white)
                     .lineLimit(1)
 
-                Text("SAR \(product.price, specifier: "%.2f")")
-                    .font(.custom("Georgia", size: 14))
-                    .italic()
-                    .foregroundColor(goldTan)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("SAR \(product.displayPrice, specifier: "%.2f")")
+                        .font(.custom("Georgia", size: 15))
+                        .italic()
+                        .foregroundColor(.white)
+                    if product.isOnSale {
+                        Text("SAR \(product.price, specifier: "%.2f")")
+                            .font(.system(size: 10))
+                            .strikethrough()
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(UIColor.systemBackground))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+
+            // Top row: discount/tag (left) + heart (right)
+            VStack {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        if product.isOnSale {
+                            tagLabel(text: salePercentText, bg: brandRed)
+                        }
+                        if let t = product.productTag {
+                            tagLabel(text: t.label, bg: t.color)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        // TODO: add to favourites
+                    } label: {
+                        Image(systemName: "heart")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                            .padding(9)
+                            .background(Color.black.opacity(0.3))
+                            .clipShape(Circle())
+                    }
+                    .accessibilityLabel("Add \(product.name) to favourites")
+                }
+                Spacer()
+            }
+            .padding(10)
         }
-        .background(Color(UIColor.systemBackground))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .frame(height: 280)
+        .clipped()
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var salePercentText: String {
+        guard let sale = product.salePrice, product.price > 0 else { return "SALE" }
+        let pct = Int(round((1 - sale / product.price) * 100))
+        return "\(pct)% OFF"
+    }
+
+    private func tagLabel(text: String, bg: Color) -> some View {
+        Text(text)
+            .font(.system(size: 8, weight: .semibold))
+            .tracking(0.5)
+            .foregroundColor(warmCream)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(bg)
+    }
+}
+
+// MARK: - Product Tag
+enum ProductTag {
+    case bestSeller
+    case sellingFast
+
+    var label: String {
+        switch self {
+        case .bestSeller: return "BEST SELLER"
+        case .sellingFast: return "SELLING FAST"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .bestSeller: return Color(hex: "1A1A1A")
+        case .sellingFast: return Color(hex: "5C0A14")
+        }
     }
 }
 
@@ -454,6 +646,75 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+// MARK: - Marquee (scrolling news ticker)
+struct MarqueeText: View {
+    let text: String
+    let gold: Color
+    let textColor: Color
+
+    @State private var animate = false
+    @State private var contentWidth: CGFloat = 0
+
+    // One repetition of the message
+    private func unit() -> some View {
+        HStack(spacing: 10) {
+            Text(text)
+                .font(.system(size: 8, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(textColor)
+                .fixedSize()
+            Text("✦")
+                .font(.system(size: 8))
+                .foregroundColor(gold)
+                .padding(.horizontal, 14)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let screenW = geo.size.width
+            // How many repetitions to fill one screen width (at least 1)
+            let repsPerScreen = contentWidth > 0 ? Int((screenW / contentWidth).rounded(.up)) + 1 : 4
+
+            HStack(spacing: 0) {
+                // Track A
+                HStack(spacing: 0) {
+                    ForEach(0..<max(repsPerScreen, 1), id: \.self) { _ in unit() }
+                }
+                .background(
+                    GeometryReader { p in
+                        Color.clear.onAppear {
+                            // width of ONE unit = trackA width / reps
+                            contentWidth = p.size.width / CGFloat(max(repsPerScreen, 1))
+                        }
+                    }
+                )
+                // Track B (identical) — sits right after A for seamless wrap
+                HStack(spacing: 0) {
+                    ForEach(0..<max(repsPerScreen, 1), id: \.self) { _ in unit() }
+                }
+            }
+            .offset(x: animate ? -(contentWidth * CGFloat(max(repsPerScreen, 1))) : 0)
+            .animation(
+                contentWidth > 0
+                ? .linear(duration: Double(contentWidth * CGFloat(max(repsPerScreen, 1)) / 35))
+                    .repeatForever(autoreverses: false)
+                : nil,
+                value: animate
+            )
+            .onAppear {
+                // Kick the animation on next runloop, once layout is measured
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    animate = true
+                }
+            }
+        }
+        .frame(height: 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 }
 

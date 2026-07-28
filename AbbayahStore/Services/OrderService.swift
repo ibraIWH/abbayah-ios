@@ -41,6 +41,29 @@ struct ShippingAddress: Decodable, Hashable {
     let phone: String
 }
 
+enum OrderError: LocalizedError {
+    case notSignedIn
+    case server(status: Int, message: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notSignedIn:
+            return "You're not signed in. Please sign in and try again."
+        case .server(let status, let message):
+            switch status {
+            case 401:
+                return "Your session expired. Please sign out and sign in again."
+            case 400:
+                return message.isEmpty ? "Some order details are missing." : message
+            case 404:
+                return "A product in your cart is no longer available."
+            default:
+                return message.isEmpty ? "Server error (\(status)). Please try again." : message
+            }
+        }
+    }
+}
+
 class OrderService: ObservableObject {
     static let shared = OrderService()
 
@@ -52,9 +75,10 @@ class OrderService: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = AuthService.shared.token {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let token = AuthService.shared.token, !token.isEmpty else {
+            throw OrderError.notSignedIn
         }
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let itemsPayload = items.map { item in
             return [
@@ -77,8 +101,17 @@ class OrderService: ObservableObject {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 201 else {
-            throw URLError(.badServerResponse)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+
+        guard status == 201 else {
+            // Pull the backend's own { "message": ... } so we see the real reason
+            var serverMessage = ""
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                serverMessage = (json["message"] as? String) ?? (json["error"] as? String) ?? ""
+            }
+            print("❌ PLACE ORDER FAILED — status \(status): \(serverMessage)")
+            print("❌ RAW RESPONSE:", String(data: data, encoding: .utf8) ?? "none")
+            throw OrderError.server(status: status, message: serverMessage)
         }
         return try JSONDecoder().decode(CreatedOrder.self, from: data)
     }

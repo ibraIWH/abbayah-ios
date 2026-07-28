@@ -7,6 +7,8 @@ struct ProductDetailView: View {
     @EnvironmentObject private var favourites: FavouritesService
     @EnvironmentObject private var auth: AuthService
 
+    @StateObject private var suggestionService = ProductService()
+
     @State private var selectedSize: String = "M"
     @State private var addedToCart: Bool = false
 
@@ -19,6 +21,11 @@ struct ProductDetailView: View {
     private let brandRed = Color(hex: "5C0A14")
 
     var isFavourite: Bool { favourites.isFavourite(product.id) }
+
+    // Suggestions = other products, excluding this one, max 6
+    private var suggestions: [Product] {
+        suggestionService.products.filter { $0.id != product.id }.prefix(6).map { $0 }
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -109,6 +116,36 @@ struct ProductDetailView: View {
                         }
                         .padding(.horizontal, 20).padding(.vertical, 16)
 
+                        // ── COMPLETE THE LOOK ──────────────
+                        if !suggestions.isEmpty {
+                            Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
+
+                            VStack(alignment: .leading, spacing: 0) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("STYLE IT WITH")
+                                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                                    Text("Complete the Look")
+                                        .font(.custom("Georgia", size: 20)).italic().foregroundColor(inkBlack)
+                                }
+                                .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 14)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(suggestions) { item in
+                                            NavigationLink {
+                                                ProductDetailView(product: item)
+                                            } label: {
+                                                HniProductCard(product: item)
+                                                    .frame(width: 160)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
+
                         Color.clear.frame(height: 100)
                     }
                 }
@@ -160,6 +197,28 @@ struct ProductDetailView: View {
                     .resizable().renderingMode(.original).scaledToFit()
                     .frame(width: 100).scaleEffect(1.5)
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink {
+                    CartView()
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bag")
+                            .foregroundColor(inkBlack)
+                        if cart.totalItems > 0 {
+                            Text("\(cart.totalItems)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(warmCream)
+                                .frame(width: 14, height: 14)
+                                .background(brandRed)
+                                .clipShape(Circle())
+                                .offset(x: 7, y: -7)
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            await suggestionService.fetchProducts(category: "All", search: "")
         }
     }
 }
