@@ -10,6 +10,7 @@ struct HomeView: View {
     @StateObject private var service = ProductService()
     @StateObject private var collectionService = CollectionService()
     @StateObject private var offerService = OfferService()
+    @ObservedObject private var notifications = NotificationService.shared
     @StateObject private var settingsService = SettingsService()
     @EnvironmentObject private var nav: NavigationCoordinator
     @Environment(\.colorScheme) private var colorScheme
@@ -70,13 +71,30 @@ struct HomeView: View {
                         AbyrNavLogo()
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button {
-                            selectedTab = .cart
-                        } label: {
-                            Image(systemName: "bag")
-                                .foregroundColor(inkBlack)
+                        HStack(spacing: 16) {
+                            NavigationLink {
+                                NotificationsView()
+                            } label: {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "bell")
+                                        .foregroundColor(inkBlack)
+                                    if notifications.unread > 0 {
+                                        Circle().fill(Color(hex: "5C0A14"))
+                                            .frame(width: 8, height: 8)
+                                            .offset(x: 4, y: -4)
+                                    }
+                                }
+                            }
+                            .accessibilityLabel("Notifications")
+
+                            Button {
+                                selectedTab = .cart
+                            } label: {
+                                Image(systemName: "bag")
+                                    .foregroundColor(inkBlack)
+                            }
+                            .accessibilityLabel("Cart")
                         }
-                        .accessibilityLabel("Cart")
                     }
                 }
             }
@@ -87,7 +105,8 @@ struct HomeView: View {
                 async let c: Void = collectionService.fetchCollections()
                 async let o: Void = offerService.fetchOffers()
                 async let p: Void = refreshProducts()
-                _ = await (s, c, o, p)
+                async let n: Void = notifications.fetch()
+                _ = await (s, c, o, p, n)
             }
             .id(nav.rootID)
         }

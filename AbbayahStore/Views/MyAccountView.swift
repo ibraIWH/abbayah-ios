@@ -61,7 +61,7 @@ struct MyAccountView: View {
 
                         menuSection(title: "Account") {
                             NavigationLink { EditProfileView() } label: { menuRowLabel(icon: "person", label: "Edit Profile") }
-                            menuRow(icon: "bell", label: "Notifications")
+                            NavigationLink { NotificationsView() } label: { menuRowLabel(icon: "bell", label: "Notifications") }
                             NavigationLink { ChangePasswordView() } label: { menuRowLabel(icon: "lock", label: "Change Password") }
                         }
 
