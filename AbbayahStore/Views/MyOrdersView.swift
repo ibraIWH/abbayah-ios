@@ -43,9 +43,7 @@ struct MyOrdersView: View {
         .tint(.black)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 160).scaleEffect(1.5)
+                AbyrNavLogo()
             }
         }
         .task { await load() }
@@ -128,4 +126,3 @@ struct MyOrdersView: View {
         return out.string(from: d)
     }
 }
-

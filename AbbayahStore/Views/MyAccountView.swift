@@ -60,15 +60,15 @@ struct MyAccountView: View {
                         }
 
                         menuSection(title: "Account") {
-                            menuRow(icon: "person", label: "Edit Profile")
+                            NavigationLink { EditProfileView() } label: { menuRowLabel(icon: "person", label: "Edit Profile") }
                             menuRow(icon: "bell", label: "Notifications")
-                            menuRow(icon: "lock", label: "Change Password")
+                            NavigationLink { ChangePasswordView() } label: { menuRowLabel(icon: "lock", label: "Change Password") }
                         }
 
                         menuSection(title: "Support") {
-                            menuRow(icon: "questionmark.circle", label: "FAQ")
-                            menuRow(icon: "envelope", label: "Contact Us")
-                            menuRow(icon: "info.circle", label: "About Abyr")
+                            NavigationLink { FAQView() } label: { menuRowLabel(icon: "questionmark.circle", label: "FAQ") }
+                            NavigationLink { ContactView() } label: { menuRowLabel(icon: "envelope", label: "Contact Us") }
+                            NavigationLink { AboutView() } label: { menuRowLabel(icon: "info.circle", label: "About Abyr") }
                         }
 
                         // Sign Out / Sign In
@@ -132,12 +132,7 @@ struct MyAccountView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 160)
-                    .scaleEffect(1.5)
+                AbyrNavLogo()
             }
         }
     }

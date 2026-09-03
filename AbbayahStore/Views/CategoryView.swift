@@ -1,7 +1,8 @@
 import SwiftUI
 
-// MARK: - CATEGORY SCREEN (editorial 2-column grid)
+// MARK: - CATEGORY SCREEN (driven by backend categories)
 struct CategoryView: View {
+    @StateObject private var collectionService = CollectionService()
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
@@ -9,21 +10,7 @@ struct CategoryView: View {
     private let sandBg = Color(hex: "FAFAF8")
     private let warmCream = Color(hex: "F5F0E8")
 
-    // Each tile: display title, the real category to filter by, eyebrow, image, and whether it spans full width
-    private let tiles: [CategoryTile] = [
-        CategoryTile(title: "The Full Collection", category: "All", eyebrow: "Explore All",
-                     image: "https://images.unsplash.com/photo-1591369822096-ffd140ec948f?w=600&q=80", wide: true),
-        CategoryTile(title: "Black Abayas", category: "Abaya", eyebrow: "Timeless",
-                     image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80", wide: false),
-        CategoryTile(title: "Jalabiya", category: "Jalabiya", eyebrow: "Everyday",
-                     image: "https://images.unsplash.com/photo-1551163943-3f6a855d1153?w=400&q=80", wide: false),
-        CategoryTile(title: "Occasion", category: "Occasion", eyebrow: "Special",
-                     image: "https://images.unsplash.com/photo-1581338834647-b0fb40704e21?w=400&q=80", wide: false),
-        CategoryTile(title: "Bisht", category: "Bisht", eyebrow: "Heritage",
-                     image: "https://images.unsplash.com/photo-1564257631407-3deb25e91c4c?w=400&q=80", wide: false),
-        CategoryTile(title: "The Summer Edit", category: "All", eyebrow: "Seasonal",
-                     image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=600&q=80", wide: true)
-    ]
+    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
         ZStack {
@@ -32,7 +19,6 @@ struct CategoryView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Page title
                     Text("Categories")
                         .font(.custom("Georgia", size: 28))
                         .italic()
@@ -41,26 +27,51 @@ struct CategoryView: View {
                         .padding(.top, 14)
                         .padding(.bottom, 16)
 
-                    VStack(spacing: 12) {
-                        ForEach(rows.indices, id: \.self) { r in
-                            let row = rows[r]
-                            if row.count == 1, let tile = row.first, tile.wide {
-                                // Full-width editorial tile
-                                tileLink(tile, height: 170)
-                            } else {
-                                HStack(spacing: 12) {
-                                    ForEach(row) { tile in
-                                        tileLink(tile, height: 210)
-                                    }
-                                    // Keep a lone tile at half width instead of stretching
-                                    if row.count == 1 {
-                                        Color.clear.frame(maxWidth: .infinity)
-                                    }
+                    if collectionService.isLoading && collectionService.collections.isEmpty {
+                        ProgressView().tint(inkBlack)
+                            .frame(maxWidth: .infinity).padding(.top, 60)
+                    } else if collectionService.collections.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.system(size: 40)).foregroundColor(goldTan.opacity(0.35))
+                            Text("No categories yet")
+                                .font(.custom("Georgia", size: 20)).italic().foregroundColor(inkBlack)
+                            Text("Browse the full collection instead.")
+                                .font(.system(size: 11)).foregroundColor(.secondary)
+                            NavigationLink {
+                                CategoryProductsView(categoryTitle: "All Products", category: "All")
+                            } label: {
+                                Text("SHOP ALL")
+                                    .font(.system(size: 10, weight: .medium)).tracking(2)
+                                    .foregroundColor(warmCream)
+                                    .padding(.horizontal, 24).padding(.vertical, 12)
+                                    .background(inkBlack)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 6)
+                        }
+                        .frame(maxWidth: .infinity).padding(.top, 50)
+                    } else {
+                        // "Shop All" always first, then one tile per backend category
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            NavigationLink {
+                                CategoryProductsView(categoryTitle: "All Products", category: "All")
+                            } label: {
+                                shopAllTile()
+                            }
+                            .buttonStyle(.plain)
+
+                            ForEach(collectionService.collections) { cat in
+                                NavigationLink {
+                                    CategoryProductsView(categoryTitle: cat.name, category: cat.name)
+                                } label: {
+                                    categoryTile(name: cat.name, image: cat.imageUrl ?? "")
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
+                        .padding(.horizontal, 18)
                     }
-                    .padding(.horizontal, 18)
 
                     Color.clear.frame(height: 110)
                 }
@@ -68,85 +79,90 @@ struct CategoryView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 120).scaleEffect(1.5)
-            }
+            ToolbarItem(placement: .principal) { AbyrNavLogo() }
         }
+        .task { await collectionService.fetchCollections() }
+        .refreshable { await collectionService.fetchCollections() }
     }
 
-    /// Wide tiles get a row to themselves; the rest are paired two-up.
-    private var rows: [[CategoryTile]] {
-        var result: [[CategoryTile]] = []
-        var pending: [CategoryTile] = []
-
-        for tile in tiles {
-            if tile.wide {
-                if !pending.isEmpty { result.append(pending); pending = [] }
-                result.append([tile])
-            } else {
-                pending.append(tile)
-                if pending.count == 2 { result.append(pending); pending = [] }
-            }
-        }
-        if !pending.isEmpty { result.append(pending) }
-        return result
-    }
-
-    private func tileLink(_ tile: CategoryTile, height: CGFloat) -> some View {
-        NavigationLink {
-            CategoryProductsView(categoryTitle: tile.title, category: tile.category)
-        } label: {
-            categoryTile(tile, height: height)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Tile
-    private func categoryTile(_ tile: CategoryTile, height: CGFloat) -> some View {
+    private func shopAllTile() -> some View {
         ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: URL(string: tile.image)) { phase in
-                if case .success(let img) = phase {
-                    img.resizable().scaledToFill()
-                } else {
-                    Color(hex: "D8CFC2")
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .clipped()
-
-            LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
-                           startPoint: .center, endPoint: .bottom)
-                .frame(height: height)
+            LinearGradient(colors: [Color(hex: "3D0608"), Color(hex: "5C0A14")],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                .frame(height: 210)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(tile.eyebrow.uppercased())
-                    .font(.system(size: 8, weight: .medium))
-                    .tracking(2)
-                    .foregroundColor(gold)
-                Text(tile.title)
-                    .font(.custom("Georgia", size: tile.wide ? 24 : 19))
+                Text("EVERYTHING")
+                    .font(.system(size: 8, weight: .medium)).tracking(2).foregroundColor(gold)
+                Text("Shop All")
+                    .font(.custom("Georgia", size: 21)).italic().foregroundColor(.white)
+            }
+            .padding(14)
+        }
+        .frame(height: 210)
+        .clipped()
+    }
+
+    private func categoryTile(name: String, image: String) -> some View {
+        let hasImage = !image.trimmingCharacters(in: .whitespaces).isEmpty
+
+        return ZStack(alignment: .bottomLeading) {
+            if hasImage {
+                AsyncImage(url: URL(string: image)) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    case .empty:
+                        ZStack {
+                            brandTile
+                            ProgressView().tint(warmCream)
+                        }
+                    default:
+                        // URL failed to load — fall back to the branded look
+                        brandTile
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 210)
+                .clipped()
+
+                // Photo tiles get a dark gradient so the name stays readable
+                LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
+                               startPoint: .center, endPoint: .bottom)
+                    .frame(height: 210)
+            } else {
+                // No image set yet — show a designed brand tile, not flat grey
+                brandTile
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 210)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                if !hasImage {
+                    Text("COLLECTION")
+                        .font(.system(size: 8, weight: .medium)).tracking(2).foregroundColor(gold)
+                }
+                Text(name)
+                    .font(.custom("Georgia", size: 19))
                     .italic()
                     .foregroundColor(.white)
                     .lineLimit(1)
             }
             .padding(14)
         }
-        .frame(height: height)
+        .frame(height: 210)
+        .clipped()
+    }
+
+    // Branded gradient used when a category has no photo (matches Shop All)
+    private var brandTile: some View {
+        LinearGradient(
+            colors: [Color(hex: "6b5444"), Color(hex: "3D0608")],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
     }
 }
 
-// MARK: - Category Tile Model
-struct CategoryTile: Identifiable {
-    let id = UUID()
-    let title: String
-    let category: String
-    let eyebrow: String
-    let image: String
-    let wide: Bool
-}
 
 // MARK: - CATEGORY PRODUCTS (filtered list)
 struct CategoryProductsView: View {

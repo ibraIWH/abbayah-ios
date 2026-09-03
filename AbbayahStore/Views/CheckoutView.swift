@@ -3,6 +3,7 @@ import SwiftUI
 struct CheckoutView: View {
     @EnvironmentObject private var cart: CartStore
     @EnvironmentObject private var auth: AuthService
+    @StateObject private var addressService = AddressService.shared
 
     private let brandRed = Color(hex: "5C0A14")
     private let inkBlack = Color(hex: "1A1A1A")
@@ -11,25 +12,19 @@ struct CheckoutView: View {
     private let sandBg = Color(hex: "FAFAF8")
     private let borderColor = Color(hex: "E8E8E4")
 
-    @State private var name = ""
-    @State private var line1 = ""
-    @State private var city = ""
-    @State private var phone = ""
+    @State private var selectedAddressID: String?
     @State private var isPlacing = false
     @State private var errorMessage = ""
     @State private var placedOrder: PlacedOrder?
 
-    @State private var savedAddresses: [SavedAddress] = []
-    @State private var selectedAddressID: UUID?
-
     private let freeThreshold: Double = 200
-
     private var deliveryFee: Double { cart.totalPrice >= freeThreshold ? 0 : 25 }
     private var grandTotal: Double { cart.totalPrice + deliveryFee }
 
-    var canPlace: Bool {
-        !name.isEmpty && !line1.isEmpty && !city.isEmpty && !cart.isEmpty
+    private var selectedAddress: Address? {
+        addressService.addresses.first { $0.id == selectedAddressID }
     }
+    private var canPlace: Bool { selectedAddress != nil && !cart.isEmpty && !isPlacing }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -37,61 +32,32 @@ struct CheckoutView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
+
                     Text("DELIVERY ADDRESS")
                         .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
-                        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+                        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 14)
 
-                    // Saved addresses — tap to fill
-                    if !savedAddresses.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(savedAddresses) { addr in
-                                    Button {
-                                        applyAddress(addr)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(addr.label.uppercased())
-                                                .font(.system(size: 8, weight: .semibold))
-                                                .tracking(1)
-                                                .foregroundColor(selectedAddressID == addr.id ? inkBlack : goldTan)
-                                            Text("\(addr.line1), \(addr.city)")
-                                                .font(.system(size: 10))
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 9)
-                                        .background(selectedAddressID == addr.id ? warmCream : Color.white)
-                                        .overlay(
-                                            Rectangle().stroke(
-                                                selectedAddressID == addr.id ? inkBlack : borderColor,
-                                                lineWidth: 0.5
-                                            )
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                    if addressService.isLoading && addressService.addresses.isEmpty {
+                        ProgressView().tint(inkBlack)
+                            .frame(maxWidth: .infinity).padding(.vertical, 30)
+                    } else if addressService.addresses.isEmpty {
+                        noAddressesYet
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(addressService.addresses) { addr in
+                                addressRow(addr)
                             }
-                            .padding(.horizontal, 20)
                         }
-                        .padding(.bottom, 16)
-                    }
+                        .padding(.horizontal, 20)
 
-                    VStack(spacing: 16) {
-                        field("Full Name", text: $name)
-                        field("Address", text: $line1)
-                        field("City", text: $city)
-                        field("Phone", text: $phone)
+                        addAddressButton.padding(.horizontal, 20).padding(.top, 12)
                     }
-                    .padding(.horizontal, 20)
 
                     if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.system(size: 11)).foregroundColor(.red)
-                            .padding(.horizontal, 20).padding(.top, 12)
+                        Text(errorMessage).font(.system(size: 11)).foregroundColor(.red)
+                            .padding(.horizontal, 20).padding(.top, 14)
                     }
 
-                    // Summary
                     Text("ORDER SUMMARY")
                         .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
                         .padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 12)
@@ -108,21 +74,9 @@ struct CheckoutView: View {
                             .padding(.horizontal, 20).padding(.vertical, 8)
                         }
                         Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
-                        HStack {
-                            Text("Subtotal").font(.system(size: 11)).foregroundColor(.secondary)
-                            Spacer()
-                            Text("SAR \(cart.totalPrice, specifier: "%.2f")")
-                                .font(.system(size: 11)).foregroundColor(inkBlack)
-                        }
-                        .padding(.horizontal, 20).padding(.vertical, 8)
-                        HStack {
-                            Text("Delivery").font(.system(size: 11)).foregroundColor(.secondary)
-                            Spacer()
-                            Text(deliveryFee == 0 ? "Free" : "SAR 25.00")
-                                .font(.system(size: 11))
-                                .foregroundColor(deliveryFee == 0 ? Color(hex: "1B5E20") : inkBlack)
-                        }
-                        .padding(.horizontal, 20).padding(.vertical, 8)
+                        summaryRow("Subtotal", "SAR \(String(format: "%.2f", cart.totalPrice))")
+                        summaryRow("Delivery", deliveryFee == 0 ? "Free" : "SAR 25.00",
+                                   valueColor: deliveryFee == 0 ? Color(hex: "1B5E20") : inkBlack)
                         Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
                         HStack {
                             Text("Total").font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
@@ -143,14 +97,15 @@ struct CheckoutView: View {
                 Button {
                     Task { await placeOrder() }
                 } label: {
-                    Text(isPlacing ? "PLACING ORDER..." : "PLACE ORDER")
+                    Text(isPlacing ? "PLACING ORDER..."
+                         : selectedAddress == nil ? "SELECT AN ADDRESS" : "PLACE ORDER")
                         .font(.system(size: 11, weight: .medium)).tracking(3)
                         .foregroundColor(warmCream)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(canPlace && !isPlacing ? brandRed : Color.gray)
+                        .background(canPlace ? brandRed : Color.gray)
                 }
                 .buttonStyle(.plain)
-                .disabled(!canPlace || isPlacing)
+                .disabled(!canPlace)
                 .padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 24)
                 .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
             }
@@ -158,77 +113,106 @@ struct CheckoutView: View {
         .navigationBarTitleDisplayMode(.inline)
         .tint(.black)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 160).scaleEffect(1.5)
-            }
+            ToolbarItem(placement: .principal) { AbyrNavLogo() }
         }
         .navigationDestination(item: $placedOrder) { order in
             OrderConfirmedView(orderNumber: order.number)
         }
-        .onAppear {
-            loadSavedAddress()
-        }
-    }
-
-    private func field(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label.uppercased())
-                .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(.secondary)
-            TextField("", text: text)
-                .font(.system(size: 13))
-                .padding(.bottom, 10)
-                .overlay(Rectangle().frame(height: 0.5).foregroundColor(inkBlack), alignment: .bottom)
-        }
-    }
-
-    private func applyAddress(_ addr: SavedAddress) {
-        line1 = addr.line1
-        city = addr.city
-        selectedAddressID = addr.id
-    }
-
-    private func loadSavedAddress() {
-        let d = UserDefaults.standard
-
-        // 1. Load the saved-address book (from My Account → Addresses)
-        if let data = d.data(forKey: "abyr_addresses"),
-           let saved = try? JSONDecoder().decode([SavedAddress].self, from: data) {
-            savedAddresses = saved
-            // Prefill from the default (or first) address
-            if let preferred = saved.first(where: { $0.isDefault }) ?? saved.first {
-                if line1.isEmpty { line1 = preferred.line1 }
-                if city.isEmpty { city = preferred.city }
-                selectedAddressID = preferred.id
+        .task {
+            await addressService.fetch()
+            if selectedAddressID == nil {
+                selectedAddressID = (addressService.addresses.first { $0.isDefault == true }
+                                     ?? addressService.addresses.first)?.id
             }
         }
-
-        // 2. Fallback: last-used checkout values
-        if line1.isEmpty { line1 = d.string(forKey: "addr_line1") ?? "" }
-        if city.isEmpty { city = d.string(forKey: "addr_city") ?? "" }
-
-        // 3. Name/phone: last-used, else account name
-        if name.isEmpty { name = d.string(forKey: "addr_name") ?? auth.currentUser?.name ?? "" }
-        if phone.isEmpty { phone = d.string(forKey: "addr_phone") ?? "" }
     }
 
-    private func saveAddress() {
-        let d = UserDefaults.standard
-        d.set(name, forKey: "addr_name")
-        d.set(line1, forKey: "addr_line1")
-        d.set(city, forKey: "addr_city")
-        d.set(phone, forKey: "addr_phone")
+    private func addressRow(_ addr: Address) -> some View {
+        let isSelected = addr.id == selectedAddressID
+        return Button {
+            selectedAddressID = addr.id
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 17))
+                    .foregroundColor(isSelected ? inkBlack : Color.gray.opacity(0.4))
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(addr.name).font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
+                        if addr.isDefault == true {
+                            Text("DEFAULT")
+                                .font(.system(size: 7, weight: .medium)).tracking(1)
+                                .foregroundColor(warmCream)
+                                .padding(.horizontal, 6).padding(.vertical, 2).background(inkBlack)
+                        }
+                    }
+                    Text(addr.line1).font(.system(size: 12)).foregroundColor(inkBlack)
+                    Text(addr.city).font(.system(size: 11)).foregroundColor(.secondary)
+                    if let phone = addr.phone, !phone.isEmpty {
+                        Text(phone).font(.system(size: 11)).foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .overlay(Rectangle().stroke(isSelected ? inkBlack : borderColor, lineWidth: isSelected ? 1 : 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var noAddressesYet: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "mappin.and.ellipse")
+                .font(.system(size: 34)).foregroundColor(goldTan.opacity(0.35))
+            Text("No saved addresses")
+                .font(.custom("Georgia", size: 18)).italic().foregroundColor(inkBlack)
+            Text("Add a delivery address to place your order.")
+                .font(.system(size: 11)).foregroundColor(.secondary).multilineTextAlignment(.center)
+            addAddressButton.padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity).padding(.horizontal, 20).padding(.vertical, 28)
+        .background(Color.white).padding(.horizontal, 20)
+    }
+
+    private var addAddressButton: some View {
+        NavigationLink {
+            AddressesView()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
+                Text("ADD NEW ADDRESS").font(.system(size: 10, weight: .medium)).tracking(2)
+            }
+            .foregroundColor(inkBlack)
+            .frame(maxWidth: .infinity).frame(height: 46)
+            .overlay(Rectangle().stroke(inkBlack, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func summaryRow(_ label: String, _ value: String, valueColor: Color? = nil) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11)).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.system(size: 11)).foregroundColor(valueColor ?? inkBlack)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
     }
 
     private func placeOrder() async {
+        guard let addr = selectedAddress else { return }
         isPlacing = true
         errorMessage = ""
         do {
             let order = try await OrderService.shared.placeOrder(
-                items: cart.items, name: name, line1: line1, city: city, phone: phone
+                items: cart.items,
+                name: addr.name,
+                line1: addr.line1,
+                city: addr.city,
+                phone: addr.phone ?? ""
             )
-            saveAddress()
             cart.clear()
             placedOrder = PlacedOrder(number: order.orderNumber)
         } catch {

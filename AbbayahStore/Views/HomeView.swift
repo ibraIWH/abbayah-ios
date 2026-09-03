@@ -67,12 +67,7 @@ struct HomeView: View {
                         .accessibilityLabel("Search products")
                     }
                     ToolbarItem(placement: .principal) {
-                        Image("AbyrLogoDark")
-                            .resizable()
-                            .renderingMode(.original)
-                            .scaledToFit()
-                            .frame(width: 120)
-                            .scaleEffect(1.5)
+                        AbyrNavLogo()
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
@@ -214,7 +209,12 @@ struct HomeView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(offerService.offers) { offer in
-                                    offerCard(title: offer.title, badge: offer.badgeText ?? "", image: offer.imageUrl ?? "")
+                                    NavigationLink {
+                                        CategoryProductsView(categoryTitle: offer.title, category: "All")
+                                    } label: {
+                                        offerCard(title: offer.title, badge: offer.badgeText ?? "", image: offer.imageUrl ?? "")
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 18)
@@ -480,6 +480,7 @@ struct HomeView: View {
 // MARK: - PRODUCT CARD
 struct HniProductCard: View {
     let product: Product
+    @ObservedObject private var favourites = FavouritesService.shared
     @Environment(\.colorScheme) private var colorScheme
 
     private let inkBlack = Color(hex: "1A1A1A")
@@ -564,16 +565,17 @@ struct HniProductCard: View {
                     Spacer()
 
                     Button {
-                        // TODO: add to favourites
+                        Task { await favourites.toggle(product: product) }
                     } label: {
-                        Image(systemName: "heart")
+                        Image(systemName: favourites.isFavourite(product.id) ? "heart.fill" : "heart")
                             .font(.system(size: 14))
-                            .foregroundColor(.white)
+                            .foregroundColor(favourites.isFavourite(product.id) ? Color(hex: "5C0A14") : .white)
                             .padding(9)
                             .background(Color.black.opacity(0.3))
                             .clipShape(Circle())
                     }
-                    .accessibilityLabel("Add \(product.name) to favourites")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(favourites.isFavourite(product.id) ? "Remove \(product.name) from favourites" : "Add \(product.name) to favourites")
                 }
                 Spacer()
             }

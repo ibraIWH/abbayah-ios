@@ -31,6 +31,7 @@ struct ProductDetailView: View {
         ZStack(alignment: .bottom) {
             sandBg.ignoresSafeArea()
 
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     // Hero image
@@ -118,6 +119,7 @@ struct ProductDetailView: View {
 
                         // ── COMPLETE THE LOOK ──────────────
                         if !suggestions.isEmpty {
+                            Color.clear.frame(height: 0).id("suggestions")
                             Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 20)
 
                             VStack(alignment: .leading, spacing: 0) {
@@ -172,11 +174,15 @@ struct ProductDetailView: View {
                         guard !product.isSoldOut else { return }
                         cart.add(product: product, size: selectedSize)
                         withAnimation { addedToCart = true }
+                        // Reveal "Complete the Look" so the customer keeps browsing
+                        withAnimation(.easeInOut(duration: 0.6)) {
+                            proxy.scrollTo("suggestions", anchor: .top)
+                        }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                             withAnimation { addedToCart = false }
                         }
                     } label: {
-                        Text(product.isSoldOut ? "SOLD OUT" : addedToCart ? "ADDED ✓" : "ADD TO CART")
+                        Text(product.isSoldOut ? "SOLD OUT" : addedToCart ? "ADDED TO CART ✓" : "ADD TO CART")
                             .font(.system(size: 11, weight: .medium)).tracking(3)
                             .foregroundColor(warmCream)
                             .frame(maxWidth: .infinity).frame(height: 52)
@@ -188,14 +194,13 @@ struct ProductDetailView: View {
                 .padding(.horizontal, 20).padding(.vertical, 12).padding(.bottom, 24)
                 .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
             }
+            } // ScrollViewReader
         }
         .navigationBarTitleDisplayMode(.inline)
         .tint(.black)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 100).scaleEffect(1.5)
+                AbyrNavLogo()
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 NavigationLink {

@@ -20,8 +20,7 @@ struct AbyrNavLogo: View {
             .resizable()
             .renderingMode(.original)
             .scaledToFit()
-            .frame(width: 160)
-            .scaleEffect(1.5)
+            .frame(height: 75)
     }
 }
 

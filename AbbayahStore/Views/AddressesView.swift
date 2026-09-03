@@ -1,53 +1,41 @@
 import SwiftUI
 
-struct SavedAddress: Identifiable, Codable, Equatable {
-    var id = UUID()
-    var label: String
-    var line1: String
-    var city: String
-    var isDefault: Bool
-}
-
 struct AddressesView: View {
-    @State private var addresses: [SavedAddress] = []
+    @StateObject private var service = AddressService.shared
+
     @State private var showAddForm = false
-    @State private var newLabel = ""
+    @State private var newName = ""
     @State private var newLine1 = ""
     @State private var newCity = ""
+    @State private var newPhone = ""
+    @State private var isSaving = false
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
+    private let warmCream = Color(hex: "F5F0E8")
     private let sandBg = Color(hex: "FAFAF8")
     private let borderColor = Color(hex: "E8E8E4")
-    private let warmCream = Color(hex: "F5F0E8")
-    private let brandRed = Color(hex: "5C0A14")
+
+    private var canSave: Bool {
+        !newName.isEmpty && !newLine1.isEmpty && !newCity.isEmpty && !isSaving
+    }
 
     var body: some View {
         ZStack {
             sandBg.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    if addresses.isEmpty && !showAddForm {
-                        VStack(spacing: 20) {
-                            Spacer().frame(height: 60)
-                            Image(systemName: "mappin")
-                                .font(.system(size: 52))
-                                .foregroundColor(goldTan.opacity(0.3))
-                            Text("No Addresses Yet")
-                                .font(.custom("Georgia", size: 24))
-                                .italic()
-                                .foregroundColor(inkBlack)
-                            Text("Add a delivery address\nto speed up checkout.")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(4)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
 
-                    ForEach(addresses) { address in
-                        addressCard(address: address)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+
+                    if service.isLoading && service.addresses.isEmpty {
+                        ProgressView().tint(inkBlack)
+                            .frame(maxWidth: .infinity).padding(.top, 60)
+                    } else if service.addresses.isEmpty && !showAddForm {
+                        emptyState
+                    } else {
+                        ForEach(service.addresses) { address in
+                            addressCard(address)
+                        }
                     }
 
                     if showAddForm {
@@ -56,45 +44,50 @@ struct AddressesView: View {
                         Button {
                             showAddForm = true
                         } label: {
-                            HStack {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 13)).foregroundColor(goldTan)
-                                Text("Add New Address")
-                                    .font(.system(size: 13)).foregroundColor(goldTan)
+                            HStack(spacing: 7) {
+                                Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
+                                Text("ADD NEW ADDRESS")
+                                    .font(.system(size: 10, weight: .medium)).tracking(2)
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .overlay(Rectangle().stroke(style: StrokeStyle(lineWidth: 0.5, dash: [4])).foregroundColor(borderColor))
+                            .foregroundColor(inkBlack)
+                            .frame(maxWidth: .infinity).frame(height: 46)
+                            .overlay(Rectangle().stroke(inkBlack, lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 4)
                     }
 
-                    Color.clear.frame(height: 100)
+                    if let msg = service.errorMessage {
+                        Text(msg).font(.system(size: 11)).foregroundColor(.red)
+                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(20)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .tint(.black)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 160).scaleEffect(1.5)
-            }
+            ToolbarItem(placement: .principal) { AbyrNavLogo() }
         }
-        .onAppear { loadAddresses() }
+        .task { await service.fetch() }
     }
 
-    // MARK: - Address Card
-    private func addressCard(address: SavedAddress) -> some View {
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "mappin.and.ellipse")
+                .font(.system(size: 40)).foregroundColor(goldTan.opacity(0.35))
+            Text("No Saved Addresses")
+                .font(.custom("Georgia", size: 20)).italic().foregroundColor(inkBlack)
+            Text("Add a delivery address to speed up checkout.")
+                .font(.system(size: 11)).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 40)
+    }
+
+    private func addressCard(_ address: Address) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(address.label)
+                Text(address.name)
                     .font(.system(size: 13, weight: .medium)).foregroundColor(inkBlack)
-                if address.isDefault {
+                if address.isDefault == true {
                     Text("DEFAULT")
                         .font(.system(size: 7, weight: .medium)).tracking(1)
                         .foregroundColor(warmCream)
@@ -108,64 +101,72 @@ struct AddressesView: View {
             Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(address.line1)
-                    .font(.system(size: 12)).foregroundColor(inkBlack)
-                Text(address.city)
-                    .font(.system(size: 11)).foregroundColor(.secondary)
+                Text(address.line1).font(.system(size: 12)).foregroundColor(inkBlack)
+                Text(address.city).font(.system(size: 11)).foregroundColor(.secondary)
+                if let phone = address.phone, !phone.isEmpty {
+                    Text(phone).font(.system(size: 11)).foregroundColor(.secondary)
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
 
             Rectangle().frame(height: 0.5).foregroundColor(borderColor).padding(.horizontal, 16)
 
             HStack(spacing: 20) {
-                if !address.isDefault {
+                if address.isDefault != true {
                     Button {
-                        setDefault(address)
+                        Task { await service.setDefault(id: address.id) }
                     } label: {
                         Text("SET DEFAULT")
                             .font(.system(size: 9, weight: .medium)).tracking(1).foregroundColor(goldTan)
                     }
                     .buttonStyle(.plain)
                 }
-
                 Spacer()
-
                 Button {
-                    delete(address)
+                    Task { await service.delete(id: address.id) }
                 } label: {
                     Text("DELETE")
-                        .font(.system(size: 9, weight: .medium)).tracking(1).foregroundColor(.red)
+                        .font(.system(size: 9, weight: .medium)).tracking(1)
+                        .foregroundColor(.red.opacity(0.7))
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
         }
         .background(Color.white)
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
     }
 
-    // MARK: - Add Form
     private var addForm: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("NEW ADDRESS")
                 .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
 
-            formField("Label (e.g. Home, Work)", text: $newLabel)
+            formField("Full Name", text: $newName)
             formField("Address", text: $newLine1)
             formField("City", text: $newCity)
+            formField("Phone (for delivery)", text: $newPhone)
 
             HStack(spacing: 12) {
                 Button {
-                    saveNewAddress()
+                    Task {
+                        isSaving = true
+                        let ok = await service.add(
+                            name: newName, line1: newLine1, city: newCity,
+                            phone: newPhone, isDefault: service.addresses.isEmpty
+                        )
+                        isSaving = false
+                        if ok { clearForm(); showAddForm = false }
+                    }
                 } label: {
-                    Text("SAVE")
+                    Text(isSaving ? "SAVING..." : "SAVE")
                         .font(.system(size: 11, weight: .medium)).tracking(2)
                         .foregroundColor(warmCream)
                         .frame(maxWidth: .infinity).frame(height: 44)
-                        .background(!newLine1.isEmpty && !newCity.isEmpty ? inkBlack : Color.gray)
+                        .background(canSave ? inkBlack : Color.gray)
                 }
                 .buttonStyle(.plain)
-                .disabled(newLine1.isEmpty || newCity.isEmpty)
+                .disabled(!canSave)
 
                 Button {
                     showAddForm = false
@@ -182,83 +183,17 @@ struct AddressesView: View {
         }
         .padding(16)
         .background(Color.white)
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
     }
 
     private func formField(_ placeholder: String, text: Binding<String>) -> some View {
         TextField(placeholder, text: text)
             .font(.system(size: 13))
-            .padding(.bottom, 8)
-            .overlay(Rectangle().frame(height: 0.5).foregroundColor(borderColor), alignment: .bottom)
-    }
-
-    // MARK: - Data
-    private func loadAddresses() {
-        if let data = UserDefaults.standard.data(forKey: "abyr_addresses"),
-           let saved = try? JSONDecoder().decode([SavedAddress].self, from: data) {
-            addresses = saved
-        }
-
-        let d = UserDefaults.standard
-        let checkoutLine1 = d.string(forKey: "addr_line1") ?? ""
-        let checkoutCity = d.string(forKey: "addr_city") ?? ""
-
-        if !checkoutLine1.isEmpty {
-            let alreadyExists = addresses.contains { $0.line1 == checkoutLine1 && $0.city == checkoutCity }
-            if !alreadyExists {
-                let addr = SavedAddress(
-                    label: "Home",
-                    line1: checkoutLine1,
-                    city: checkoutCity,
-                    isDefault: addresses.isEmpty
-                )
-                addresses.append(addr)
-                persist()
-            }
-        }
-    }
-
-    private func saveNewAddress() {
-        let addr = SavedAddress(
-            label: newLabel.isEmpty ? "Home" : newLabel,
-            line1: newLine1,
-            city: newCity,
-            isDefault: addresses.isEmpty
-        )
-        addresses.append(addr)
-        persist()
-        showAddForm = false
-        clearForm()
-    }
-
-    private func delete(_ address: SavedAddress) {
-        addresses.removeAll { $0.id == address.id }
-        if address.isDefault, let first = addresses.first {
-            if let i = addresses.firstIndex(where: { $0.id == first.id }) {
-                addresses[i].isDefault = true
-            }
-        }
-        persist()
-    }
-
-    private func setDefault(_ address: SavedAddress) {
-        for i in addresses.indices {
-            addresses[i].isDefault = addresses[i].id == address.id
-        }
-        persist()
-
-        let d = UserDefaults.standard
-        d.set(address.line1, forKey: "addr_line1")
-        d.set(address.city, forKey: "addr_city")
-    }
-
-    private func persist() {
-        if let data = try? JSONEncoder().encode(addresses) {
-            UserDefaults.standard.set(data, forKey: "abyr_addresses")
-        }
+            .padding(.vertical, 10).padding(.horizontal, 12)
+            .overlay(Rectangle().stroke(borderColor, lineWidth: 0.5))
     }
 
     private func clearForm() {
-        newLabel = ""; newLine1 = ""; newCity = ""
+        newName = ""; newLine1 = ""; newCity = ""; newPhone = ""
     }
 }

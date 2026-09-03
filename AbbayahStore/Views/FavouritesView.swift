@@ -49,9 +49,7 @@ struct FavouritesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Image("AbyrLogoDark")
-                    .resizable().renderingMode(.original).scaledToFit()
-                    .frame(width: 160).scaleEffect(1.5)
+                AbyrNavLogo()
             }
         }
         .task {
