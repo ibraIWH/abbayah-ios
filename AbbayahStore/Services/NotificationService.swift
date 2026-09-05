@@ -130,6 +130,22 @@ class NotificationService: ObservableObject {
         _ = try? await URLSession.shared.data(for: req)
     }
 
+    /// Delete every notification for this user, on the server and locally.
+    func clearAll() async {
+        guard let token = AuthService.shared.token, !token.isEmpty,
+              let url = URL(string: "\(baseURL)/clear") else { return }
+
+        // Optimistic: empty the list immediately
+        items = []
+        unread = 0
+        seenIDs = []
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
     func clearLocal() {
         items = []
         unread = 0
