@@ -221,38 +221,41 @@ struct HomeView: View {
                         .padding(.bottom, 6)
                     }
 
-                    sectionHeader(eyebrow: "Don't Miss", title: "Offers", showLink: false)
                     if offerService.isLoading {
                         HStack {
                             Spacer()
                             ProgressView().tint(inkBlack)
                             Spacer()
                         }
-                        .frame(height: 180)
-                    } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(offerService.offers) { offer in
-                                    NavigationLink {
-                                        CategoryProductsView(categoryTitle: offer.title, category: "All")
-                                    } label: {
-                                        offerCard(title: offer.title, badge: offer.badgeText ?? "", image: offer.imageUrl ?? "")
-                                    }
-                                    .buttonStyle(.plain)
+                        .frame(height: 220)
+                    } else if !offerService.offers.isEmpty {
+                        sectionHeader(eyebrow: "Don't Miss", title: "Offers", showLink: false)
+                        VStack(spacing: 16) {
+                            ForEach(offerService.offers) { offer in
+                                NavigationLink {
+                                    CategoryProductsView(categoryTitle: offer.title, category: "All")
+                                } label: {
+                                    offerBanner(title: offer.title,
+                                                badge: offer.badgeText ?? "",
+                                                subtitle: offer.subtitle ?? "",
+                                                image: offer.imageUrl ?? "")
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 18)
                         }
+                        .padding(.horizontal, 18)
                         .padding(.bottom, 6)
                     }
 
                     sectionHeader(eyebrow: "Just In", title: "New Arrivals", showLink: true)
                     horizontalProducts
 
-                    sectionHeader(eyebrow: "Limited", title: "The Summer Edit", showLink: false)
-                    promoBanner
-                        .padding(.horizontal, 18)
-                        .padding(.top, 2)
+                    if let promo = settingsService.settings?.promo, promo.active != false {
+                        sectionHeader(eyebrow: "Limited", title: "The Summer Edit", showLink: false)
+                        promoBanner(promo)
+                            .padding(.horizontal, 18)
+                            .padding(.top, 2)
+                    }
 
                     sectionHeader(eyebrow: "Loved by You", title: "Trending Now", showLink: true)
                     horizontalProducts
@@ -304,41 +307,64 @@ struct HomeView: View {
         }
     }
 
-    private func offerCard(title: String, badge: String, image: String) -> some View {
-        ZStack(alignment: .topTrailing) {
+    // Big full-width editorial offer banner (like the web design)
+    private func offerBanner(title: String, badge: String, subtitle: String, image: String) -> some View {
+        ZStack(alignment: .topLeading) {
             AsyncImage(url: URL(string: image)) { phase in
-                if case .success(let img) = phase {
+                switch phase {
+                case .success(let img):
                     img.resizable().scaledToFill()
-                } else {
-                    Color(hex: "ECE6DC")
+                default:
+                    LinearGradient(colors: [Color(hex: "6b5444"), Color(hex: "3D0608")],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
-            .frame(width: 150, height: 180)
+            .frame(height: 420)
+            .frame(maxWidth: .infinity)
             .clipped()
 
-            LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
-                           startPoint: .center, endPoint: .bottom)
-                .frame(width: 150, height: 180)
+            // Dark gradient from the right so the text reads on any photo
+            LinearGradient(
+                colors: [Color.black.opacity(0.05), Color.black.opacity(0.35), Color.black.opacity(0.65)],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(height: 420)
 
-            if !badge.isEmpty {
-                Text(badge)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(warmCream)
-                    .padding(.horizontal, 8).padding(.vertical, 5)
-                    .background(brandRed)
-                    .padding(8)
-            }
-
-            VStack {
+            VStack(alignment: .leading, spacing: 0) {
+                if !badge.isEmpty {
+                    Text(badge)
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(1)
+                        .foregroundColor(warmCream)
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(goldTan)
+                }
                 Spacer()
                 Text(title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.custom("Georgia", size: 30))
+                    .italic()
                     .foregroundColor(.white)
-                    .padding(.bottom, 12)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.85))
+                        .padding(.top, 8)
+                }
+                Rectangle().fill(Color.white.opacity(0.4)).frame(height: 0.5)
+                    .padding(.top, 18).padding(.bottom, 14)
+                HStack(spacing: 8) {
+                    Text("SHOP NOW")
+                        .font(.system(size: 11, weight: .semibold)).tracking(2)
+                        .foregroundColor(.white)
+                    Image(systemName: "arrow.right").font(.system(size: 11)).foregroundColor(.white)
+                }
             }
-            .frame(width: 150, height: 180)
+            .padding(22)
         }
-        .frame(width: 150, height: 180)
+        .frame(height: 420)
+        .clipped()
     }
 
     private func sectionHeader(eyebrow: String, title: String, showLink: Bool) -> some View {
@@ -401,29 +427,33 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    private var promoBanner: some View {
+    private func promoBanner(_ promo: SiteSettings.Promo) -> some View {
         ZStack(alignment: .leading) {
             LinearGradient(colors: [deepRed, brandRed],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("CODE B2G3")
-                    .font(.system(size: 8, weight: .medium))
-                    .tracking(3)
-                    .foregroundColor(gold)
-                    .padding(.bottom, 7)
-                Text("Buy 2")
+                if let code = promo.code, !code.isEmpty {
+                    Text("CODE \(code)")
+                        .font(.system(size: 8, weight: .medium))
+                        .tracking(3)
+                        .foregroundColor(gold)
+                        .padding(.bottom, 7)
+                }
+                Text(promo.line1 ?? "")
                     .font(.custom("Georgia", size: 25))
                     .italic()
                     .foregroundColor(warmCream)
-                Text("Get 3rd Free")
+                Text(promo.line2 ?? "")
                     .font(.custom("Georgia", size: 25))
                     .italic()
                     .foregroundColor(warmCream)
                     .padding(.bottom, 3)
-                Text("On all summer abayas")
-                    .font(.system(size: 9))
-                    .foregroundColor(.white.opacity(0.7))
+                if let subtitle = promo.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
             }
             .padding(.horizontal, 22)
         }
