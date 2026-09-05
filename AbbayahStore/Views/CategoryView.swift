@@ -89,6 +89,7 @@ struct CategoryView: View {
         ZStack(alignment: .bottomLeading) {
             LinearGradient(colors: [Color(hex: "3D0608"), Color(hex: "5C0A14")],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
+                .frame(maxWidth: .infinity)
                 .frame(height: 210)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -99,8 +100,10 @@ struct CategoryView: View {
             }
             .padding(14)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 210)
         .clipped()
+        .contentShape(Rectangle())
     }
 
     private func categoryTile(name: String, image: String) -> some View {
@@ -147,6 +150,7 @@ struct CategoryView: View {
             }
             .padding(14)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 210)
         .clipped()
     }
@@ -168,12 +172,23 @@ struct CategoryProductsView: View {
 
     @StateObject private var service = ProductService()
     @State private var isLoading = true
+    @State private var sort: ProductSort = .newest
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
     private let sandBg = Color(hex: "FAFAF8")
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+
+    // Products sorted by the chosen option
+    private var sortedProducts: [Product] {
+        switch sort {
+        case .newest:      return service.products
+        case .priceLow:    return service.products.sorted { $0.displayPrice < $1.displayPrice }
+        case .priceHigh:   return service.products.sorted { $0.displayPrice > $1.displayPrice }
+        case .name:        return service.products.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -201,11 +216,33 @@ struct CategoryProductsView: View {
                         Text("\(service.products.count) piece\(service.products.count == 1 ? "" : "s")")
                             .font(.system(size: 10)).foregroundColor(.secondary)
                         Spacer()
+                        Menu {
+                            ForEach(ProductSort.allCases, id: \.self) { option in
+                                Button {
+                                    sort = option
+                                } label: {
+                                    HStack {
+                                        Text(option.label)
+                                        if sort == option { Image(systemName: "checkmark") }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.system(size: 10))
+                                Text(sort.label)
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(inkBlack)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .overlay(Rectangle().stroke(Color(hex: "E8E8E4"), lineWidth: 0.5))
+                        }
                     }
-                    .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 4)
+                    .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 8)
 
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(service.products) { product in
+                        ForEach(sortedProducts) { product in
                             NavigationLink {
                                 ProductDetailView(product: product)
                             } label: {
@@ -241,4 +278,18 @@ struct CategoryProductsView: View {
 
 #Preview {
     NavigationStack { CategoryView() }
+}
+
+// MARK: - Sort options
+enum ProductSort: CaseIterable {
+    case newest, priceLow, priceHigh, name
+
+    var label: String {
+        switch self {
+        case .newest:    return "Newest"
+        case .priceLow:  return "Price: Low to High"
+        case .priceHigh: return "Price: High to Low"
+        case .name:      return "Name"
+        }
+    }
 }

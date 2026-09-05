@@ -13,6 +13,7 @@ struct HomeView: View {
     @ObservedObject private var notifications = NotificationService.shared
     @StateObject private var settingsService = SettingsService()
     @EnvironmentObject private var nav: NavigationCoordinator
+    @EnvironmentObject private var cart: CartStore
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedTab: BottomTab = .home
@@ -91,17 +92,31 @@ struct HomeView: View {
                                             .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 10, y: -6)
+                                            .offset(x: 12, y: -10)
                                     }
                                 }
+                                .frame(height: 28)
                             }
                             .accessibilityLabel("Notifications")
 
                             Button {
                                 selectedTab = .cart
                             } label: {
-                                Image(systemName: "bag")
-                                    .foregroundColor(inkBlack)
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "bag")
+                                        .foregroundColor(inkBlack)
+                                    if cart.totalItems > 0 {
+                                        Text("\(min(cart.totalItems, 99))")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 5)
+                                            .frame(minWidth: 18, minHeight: 18)
+                                            .background(Color(hex: "5C0A14"))
+                                            .clipShape(Capsule())
+                                            .offset(x: 12, y: -10)
+                                    }
+                                }
+                                .frame(height: 28)
                             }
                             .accessibilityLabel("Cart")
                         }
@@ -315,61 +330,61 @@ struct HomeView: View {
 
     // Side-scrolling editorial offer banner (web-style card)
     private func offerBanner(title: String, badge: String, subtitle: String, image: String) -> some View {
-        let cardWidth = UIScreen.main.bounds.width - 60
+        let cardWidth = UIScreen.main.bounds.width - 48
+        let cardHeight: CGFloat = 260
 
-        return ZStack(alignment: .topLeading) {
+        return HStack(spacing: 0) {
+            // LEFT: image half
             AsyncImage(url: URL(string: image)) { phase in
                 switch phase {
                 case .success(let img):
                     img.resizable().scaledToFill()
                 default:
-                    LinearGradient(colors: [Color(hex: "6b5444"), Color(hex: "3D0608")],
+                    LinearGradient(colors: [Color(hex: "6b5444"), Color(hex: "4a3a2e")],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
-            .frame(width: cardWidth, height: 240)
+            .frame(width: cardWidth * 0.5, height: cardHeight)
             .clipped()
 
-            LinearGradient(
-                colors: [Color.black.opacity(0.05), Color.black.opacity(0.35), Color.black.opacity(0.65)],
-                startPoint: .leading, endPoint: .trailing
-            )
-            .frame(width: cardWidth, height: 240)
-
+            // RIGHT: dark text panel
             VStack(alignment: .leading, spacing: 0) {
                 if !badge.isEmpty {
                     Text(badge)
                         .font(.system(size: 10, weight: .semibold))
                         .tracking(1)
-                        .foregroundColor(warmCream)
+                        .foregroundColor(inkBlack)
                         .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(goldTan)
+                        .background(gold)
                 }
                 Spacer()
                 Text(title)
-                    .font(.custom("Georgia", size: 24))
+                    .font(.custom("Georgia", size: 26))
                     .italic()
-                    .foregroundColor(.white)
-                    .lineLimit(2)
+                    .foregroundColor(warmCream)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 if !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.85))
-                        .padding(.top, 6)
+                        .foregroundColor(warmCream.opacity(0.7))
+                        .padding(.top, 8)
                 }
-                Rectangle().fill(Color.white.opacity(0.4)).frame(height: 0.5)
-                    .padding(.top, 14).padding(.bottom, 10)
+                Spacer()
+                Rectangle().fill(gold.opacity(0.5)).frame(height: 0.5)
+                    .padding(.bottom, 12)
                 HStack(spacing: 8) {
                     Text("SHOP NOW")
                         .font(.system(size: 10, weight: .semibold)).tracking(2)
-                        .foregroundColor(.white)
-                    Image(systemName: "arrow.right").font(.system(size: 10)).foregroundColor(.white)
+                        .foregroundColor(gold)
+                    Image(systemName: "arrow.right").font(.system(size: 10)).foregroundColor(gold)
                 }
             }
             .padding(18)
+            .frame(width: cardWidth * 0.5, height: cardHeight, alignment: .leading)
+            .background(inkBlack)
         }
-        .frame(width: cardWidth, height: 240)
+        .frame(width: cardWidth, height: cardHeight)
         .clipped()
     }
 
