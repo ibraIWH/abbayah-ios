@@ -55,6 +55,11 @@ struct HomeView: View {
 
                     bottomBar
                 }
+                .onChange(of: selectedTab) { _, newTab in
+                    if newTab == .home {
+                        Task { await refreshAll() }
+                    }
+                }
                 .ignoresSafeArea(edges: .bottom)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -80,13 +85,13 @@ struct HomeView: View {
                                         .foregroundColor(inkBlack)
                                     if notifications.unread > 0 {
                                         Text("\(min(notifications.unread, 99))")
-                                            .font(.system(size: 9, weight: .bold))
+                                            .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(.white)
-                                            .frame(minWidth: 15, minHeight: 15)
-                                            .padding(.horizontal, notifications.unread > 9 ? 3 : 0)
+                                            .padding(.horizontal, 5)
+                                            .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 8, y: -8)
+                                            .offset(x: 10, y: -6)
                                     }
                                 }
                             }
@@ -166,9 +171,12 @@ struct HomeView: View {
                         if let hero = settingsService.settings?.hero {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(hero.eyebrow ?? "")
-                                    .font(.system(size: 9, weight: .medium))
-                                    .tracking(4)
-                                    .foregroundColor(gold)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .tracking(3)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.black.opacity(0.35))
                                     .padding(.bottom, 10)
                                 Text(hero.title ?? "")
                                     .font(.custom("Georgia", size: heroTitleSize(hero.title ?? "")))
@@ -266,11 +274,7 @@ struct HomeView: View {
                 }
             }
             .refreshable {
-                async let s: Void = settingsService.fetchSettings()
-                async let c: Void = collectionService.fetchCollections()
-                async let o: Void = offerService.fetchOffers()
-                async let p: Void = refreshProducts()
-                _ = await (s, c, o, p)
+                await refreshAll()
             }
         }
     }
@@ -437,10 +441,13 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if let code = promo.code, !code.isEmpty {
                     Text("CODE \(code)")
-                        .font(.system(size: 8, weight: .medium))
-                        .tracking(3)
-                        .foregroundColor(gold)
-                        .padding(.bottom, 7)
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(2)
+                        .foregroundColor(deepRed)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(gold)
+                        .padding(.bottom, 10)
                 }
                 Text(promo.line1 ?? "")
                     .font(.custom("Georgia", size: 25))
@@ -506,7 +513,16 @@ struct HomeView: View {
     private func resetHomeState() {
         selectedCategory = "All"
         searchText = ""
-        Task { await refreshProducts() }
+        Task { await refreshAll() }
+    }
+
+    /// Reload everything the home screen shows, live from the server.
+    private func refreshAll() async {
+        async let s: Void = settingsService.fetchSettings()
+        async let c: Void = collectionService.fetchCollections()
+        async let o: Void = offerService.fetchOffers()
+        async let p: Void = refreshProducts()
+        _ = await (s, c, o, p)
     }
 
     /// The hero title is set from the admin panel, so its length varies a lot.
@@ -579,15 +595,19 @@ struct HniProductCard: View {
             // Text overlay (category, name, price)
             VStack(alignment: .leading, spacing: 4) {
                 Text(product.category.uppercased())
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.system(size: 8, weight: .semibold))
                     .tracking(1.5)
-                    .foregroundColor(gold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.4))
 
                 Text(product.name)
                     .font(.custom("Georgia", size: 16))
                     .italic()
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("SAR \(product.displayPrice, specifier: "%.2f")")

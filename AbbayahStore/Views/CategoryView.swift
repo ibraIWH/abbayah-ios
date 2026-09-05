@@ -107,35 +107,32 @@ struct CategoryView: View {
         let hasImage = !image.trimmingCharacters(in: .whitespaces).isEmpty
 
         return ZStack(alignment: .bottomLeading) {
-            if hasImage {
-                AsyncImage(url: URL(string: image)) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    case .empty:
-                        ZStack {
+            // Background layer — identical frame for every tile
+            Group {
+                if hasImage {
+                    AsyncImage(url: URL(string: image)) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        case .empty:
+                            ZStack { brandTile; ProgressView().tint(warmCream) }
+                        default:
                             brandTile
-                            ProgressView().tint(warmCream)
                         }
-                    default:
-                        // URL failed to load — fall back to the branded look
-                        brandTile
                     }
+                } else {
+                    brandTile
                 }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 210)
+            .clipped()
+
+            // Dark gradient so the name is readable on any tile
+            LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
+                           startPoint: .center, endPoint: .bottom)
                 .frame(maxWidth: .infinity)
                 .frame(height: 210)
-                .clipped()
-
-                // Photo tiles get a dark gradient so the name stays readable
-                LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
-                               startPoint: .center, endPoint: .bottom)
-                    .frame(height: 210)
-            } else {
-                // No image set yet — show a designed brand tile, not flat grey
-                brandTile
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 210)
-            }
 
             VStack(alignment: .leading, spacing: 3) {
                 if !hasImage {

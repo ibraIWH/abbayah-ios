@@ -2,11 +2,15 @@ import SwiftUI
 
 struct SearchView: View {
     @StateObject private var service = ProductService()
+    @StateObject private var collectionService = CollectionService()
     @State private var searchText = ""
     @State private var selectedCategory = "All"
     @State private var isLoading = false
 
-    private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
+    // "All" plus the real categories from the backend
+    private var categories: [String] {
+        ["All"] + collectionService.collections.map { $0.name }
+    }
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
     private let sandBg = Color(hex: "FAFAF8")
@@ -130,7 +134,10 @@ struct SearchView: View {
                 AbyrNavLogo()
             }
         }
-        .task { await search() }
+        .task {
+            await collectionService.fetchCollections()
+            await search()
+        }
     }
 
     private func search() async {

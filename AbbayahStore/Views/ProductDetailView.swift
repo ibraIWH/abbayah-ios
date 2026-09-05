@@ -210,13 +210,14 @@ struct ProductDetailView: View {
                         Image(systemName: "bag")
                             .foregroundColor(inkBlack)
                         if cart.totalItems > 0 {
-                            Text("\(cart.totalItems)")
-                                .font(.system(size: 8, weight: .bold))
+                            Text("\(min(cart.totalItems, 99))")
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(warmCream)
-                                .frame(width: 14, height: 14)
+                                .padding(.horizontal, 5)
+                                .frame(minWidth: 18, minHeight: 18)
                                 .background(brandRed)
-                                .clipShape(Circle())
-                                .offset(x: 7, y: -7)
+                                .clipShape(Capsule())
+                                .offset(x: 10, y: -6)
                         }
                     }
                 }
