@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @StateObject private var service = NotificationService.shared
+    @State private var showClearConfirm = false
 
     private let inkBlack = Color(hex: "1A1A1A")
     private let goldTan = Color(hex: "8B7355")
@@ -42,17 +43,35 @@ struct NotificationsView: View {
                 Text("NOTIFICATIONS")
                     .font(.system(size: 11, weight: .medium)).tracking(2).foregroundColor(inkBlack)
             }
-            if service.unread > 0 {
+            if !service.items.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Mark all read") {
-                        Task { await service.markAllRead() }
+                    Menu {
+                        Button("Clear all", role: .destructive) {
+                            showClearConfirm = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundColor(goldTan)
                     }
-                    .font(.system(size: 11)).foregroundColor(goldTan)
                 }
             }
         }
-        .task { await service.fetch() }
+        .task {
+            await service.fetch()
+            // Opening the screen counts as seeing them — mark all read
+            await service.markAllRead()
+        }
         .refreshable { await service.fetch() }
+        .confirmationDialog(
+            "Clear all notifications?",
+            isPresented: $showClearConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear all", role: .destructive) {
+                Task { await service.clearAll() }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
     }
 
     private func notificationRow(_ note: AppNotification) -> some View {
