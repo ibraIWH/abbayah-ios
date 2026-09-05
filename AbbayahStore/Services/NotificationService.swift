@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 struct AppNotification: Identifiable, Codable, Equatable {
     let id: String
@@ -28,7 +29,54 @@ class NotificationService: ObservableObject {
     @Published var unread: Int = 0
     @Published var isLoading = false
 
+    // Ids we've already shown a banner for — prevents re-bannering on every refresh
+    private var seenIDs: Set<String> = []
+    private var hasLoadedOnce = false
+    private var pollTask: Task<Void, Never>?
+
     private let baseURL = "https://abbayah-backend.onrender.com/api/notifications"
+
+    /// Ask iOS for permission to show banners. Safe to call repeatedly.
+    func requestPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            print("🔔 Notification permission granted:", granted)
+        }
+    }
+
+    /// Re-check the server every 30s so new notifications arrive on their own,
+    /// banner included, without the user navigating anywhere.
+    func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30s
+                guard let self else { break }
+                if AuthService.shared.isLoggedIn {
+                    await self.fetch()
+                }
+            }
+        }
+    }
+
+    func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    /// Show a real iOS banner for a notification (works while app is open).
+    private func showBanner(_ note: AppNotification) {
+        let content = UNMutableNotificationContent()
+        content.title = note.title
+        content.body = note.message
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: note.id,
+            content: content,
+            trigger: nil // fire immediately
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
 
     func fetch() async {
         guard let token = AuthService.shared.token, !token.isEmpty,
@@ -47,6 +95,17 @@ class NotificationService: ObservableObject {
             guard status == 200 else { return }
 
             let decoded = try JSONDecoder().decode(NotificationResponse.self, from: data)
+
+            // On the very first load, just remember what exists — don't banner history.
+            // After that, banner anything new + unread.
+            if hasLoadedOnce {
+                for note in decoded.items where !note.read && !seenIDs.contains(note.id) {
+                    showBanner(note)
+                }
+            }
+            for note in decoded.items { seenIDs.insert(note.id) }
+            hasLoadedOnce = true
+
             self.items = decoded.items
             self.unread = decoded.unread
         } catch {
@@ -74,5 +133,8 @@ class NotificationService: ObservableObject {
     func clearLocal() {
         items = []
         unread = 0
+        seenIDs = []
+        hasLoadedOnce = false
+        stopPolling()
     }
 }

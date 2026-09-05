@@ -79,9 +79,14 @@ struct HomeView: View {
                                     Image(systemName: "bell")
                                         .foregroundColor(inkBlack)
                                     if notifications.unread > 0 {
-                                        Circle().fill(Color(hex: "5C0A14"))
-                                            .frame(width: 8, height: 8)
-                                            .offset(x: 4, y: -4)
+                                        Text("\(min(notifications.unread, 99))")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(minWidth: 15, minHeight: 15)
+                                            .padding(.horizontal, notifications.unread > 9 ? 3 : 0)
+                                            .background(Color(hex: "5C0A14"))
+                                            .clipShape(Capsule())
+                                            .offset(x: 8, y: -8)
                                     }
                                 }
                             }

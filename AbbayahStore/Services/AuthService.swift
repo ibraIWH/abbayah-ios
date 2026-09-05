@@ -103,6 +103,7 @@ class AuthService: ObservableObject {
             self.isLoggedIn = false
             CartStore.shared.clearLocalOnly()
             AddressService.shared.clearLocal()
+            NotificationService.shared.clearLocal()
         }
     }
 
@@ -130,6 +131,7 @@ class AuthService: ObservableObject {
             self.currentUser = response.user
             self.isLoggedIn = true
             Task { await CartStore.shared.mergeAndLoad() }
+            NotificationService.shared.startPolling()
         }
     }
 
