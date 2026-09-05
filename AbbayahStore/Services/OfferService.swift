@@ -16,7 +16,9 @@ class OfferService: ObservableObject {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, _) = try await URLSession.shared.data(for: request)
             let decoded = try JSONDecoder().decode([Offer].self, from: data)
 
             await MainActor.run {

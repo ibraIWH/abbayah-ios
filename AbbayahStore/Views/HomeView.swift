@@ -230,20 +230,22 @@ struct HomeView: View {
                         .frame(height: 220)
                     } else if !offerService.offers.isEmpty {
                         sectionHeader(eyebrow: "Don't Miss", title: "Offers", showLink: false)
-                        VStack(spacing: 16) {
-                            ForEach(offerService.offers) { offer in
-                                NavigationLink {
-                                    CategoryProductsView(categoryTitle: offer.title, category: "All")
-                                } label: {
-                                    offerBanner(title: offer.title,
-                                                badge: offer.badgeText ?? "",
-                                                subtitle: offer.subtitle ?? "",
-                                                image: offer.imageUrl ?? "")
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 14) {
+                                ForEach(offerService.offers) { offer in
+                                    NavigationLink {
+                                        CategoryProductsView(categoryTitle: offer.title, category: "All")
+                                    } label: {
+                                        offerBanner(title: offer.title,
+                                                    badge: offer.badgeText ?? "",
+                                                    subtitle: offer.subtitle ?? "",
+                                                    image: offer.imageUrl ?? "")
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.horizontal, 18)
                         }
-                        .padding(.horizontal, 18)
                         .padding(.bottom, 6)
                     }
 
@@ -307,9 +309,11 @@ struct HomeView: View {
         }
     }
 
-    // Big full-width editorial offer banner (like the web design)
+    // Side-scrolling editorial offer banner (web-style card)
     private func offerBanner(title: String, badge: String, subtitle: String, image: String) -> some View {
-        ZStack(alignment: .topLeading) {
+        let cardWidth = UIScreen.main.bounds.width - 60
+
+        return ZStack(alignment: .topLeading) {
             AsyncImage(url: URL(string: image)) { phase in
                 switch phase {
                 case .success(let img):
@@ -319,51 +323,49 @@ struct HomeView: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
-            .frame(height: 420)
-            .frame(maxWidth: .infinity)
+            .frame(width: cardWidth, height: 240)
             .clipped()
 
-            // Dark gradient from the right so the text reads on any photo
             LinearGradient(
                 colors: [Color.black.opacity(0.05), Color.black.opacity(0.35), Color.black.opacity(0.65)],
                 startPoint: .leading, endPoint: .trailing
             )
-            .frame(height: 420)
+            .frame(width: cardWidth, height: 240)
 
             VStack(alignment: .leading, spacing: 0) {
                 if !badge.isEmpty {
                     Text(badge)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .tracking(1)
                         .foregroundColor(warmCream)
-                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(goldTan)
                 }
                 Spacer()
                 Text(title)
-                    .font(.custom("Georgia", size: 30))
+                    .font(.custom("Georgia", size: 24))
                     .italic()
                     .foregroundColor(.white)
-                    .lineLimit(3)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.85))
-                        .padding(.top, 8)
+                        .padding(.top, 6)
                 }
                 Rectangle().fill(Color.white.opacity(0.4)).frame(height: 0.5)
-                    .padding(.top, 18).padding(.bottom, 14)
+                    .padding(.top, 14).padding(.bottom, 10)
                 HStack(spacing: 8) {
                     Text("SHOP NOW")
-                        .font(.system(size: 11, weight: .semibold)).tracking(2)
+                        .font(.system(size: 10, weight: .semibold)).tracking(2)
                         .foregroundColor(.white)
-                    Image(systemName: "arrow.right").font(.system(size: 11)).foregroundColor(.white)
+                    Image(systemName: "arrow.right").font(.system(size: 10)).foregroundColor(.white)
                 }
             }
-            .padding(22)
+            .padding(18)
         }
-        .frame(height: 420)
+        .frame(width: cardWidth, height: 240)
         .clipped()
     }
 
