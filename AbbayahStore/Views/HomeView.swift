@@ -77,7 +77,7 @@ struct HomeView: View {
                         AbyrNavLogo()
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        HStack(spacing: 16) {
+                        HStack(spacing: 3) {
                             NavigationLink {
                                 NotificationsView()
                             } label: {
@@ -92,7 +92,7 @@ struct HomeView: View {
                                             .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 12, y: -10)
+                                            .offset(x: 0, y: 0)
                                     }
                                 }
                                 .frame(height: 28)
@@ -113,7 +113,7 @@ struct HomeView: View {
                                             .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 12, y: -10)
+                                            .offset(x: 0, y: 0)
                                     }
                                 }
                                 .frame(height: 28)
@@ -257,7 +257,7 @@ struct HomeView: View {
                             HStack(spacing: 14) {
                                 ForEach(offerService.offers) { offer in
                                     NavigationLink {
-                                        CategoryProductsView(categoryTitle: offer.title, category: "All")
+                                        ProductBrowseView(initialCategory: "All", showSearchBar: false, showCategoryChips: false, navTitle: offer.title)
                                     } label: {
                                         offerBanner(title: offer.title,
                                                     badge: offer.badgeText ?? "",
@@ -813,4 +813,8 @@ struct MarqueeText: View {
 
 #Preview {
     HomeView()
+        .environmentObject(AuthService.shared)
+        .environmentObject(CartStore.shared)
+        .environmentObject(FavouritesService.shared)
+        .environmentObject(NavigationCoordinator.shared)
 }

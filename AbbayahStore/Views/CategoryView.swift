@@ -24,7 +24,7 @@ struct CategoryView: View {
                         .italic()
                         .foregroundColor(inkBlack)
                         .padding(.horizontal, 18)
-                        .padding(.top, 14)
+                        .padding(.top, 8)
                         .padding(.bottom, 16)
 
                     if collectionService.isLoading && collectionService.collections.isEmpty {
@@ -39,7 +39,7 @@ struct CategoryView: View {
                             Text("Browse the full collection instead.")
                                 .font(.system(size: 11)).foregroundColor(.secondary)
                             NavigationLink {
-                                CategoryProductsView(categoryTitle: "All Products", category: "All")
+                                ProductBrowseView(initialCategory: "All", showSearchBar: false, showCategoryChips: false, navTitle: "All Products")
                             } label: {
                                 Text("SHOP ALL")
                                     .font(.system(size: 10, weight: .medium)).tracking(2)
@@ -55,7 +55,7 @@ struct CategoryView: View {
                         // "Shop All" always first, then one tile per backend category
                         LazyVGrid(columns: columns, spacing: 12) {
                             NavigationLink {
-                                CategoryProductsView(categoryTitle: "All Products", category: "All")
+                                ProductBrowseView(initialCategory: "All", showSearchBar: false, showCategoryChips: false, navTitle: "All Products")
                             } label: {
                                 shopAllTile()
                             }
@@ -63,7 +63,7 @@ struct CategoryView: View {
 
                             ForEach(collectionService.collections) { cat in
                                 NavigationLink {
-                                    CategoryProductsView(categoryTitle: cat.name, category: cat.name)
+                                    ProductBrowseView(initialCategory: cat.name, showSearchBar: false, showCategoryChips: false, navTitle: cat.name)
                                 } label: {
                                     categoryTile(name: cat.name, image: cat.imageUrl ?? "")
                                 }
@@ -97,6 +97,7 @@ struct CategoryView: View {
                     .font(.system(size: 8, weight: .medium)).tracking(2).foregroundColor(gold)
                 Text("Shop All")
                     .font(.custom("Georgia", size: 21)).italic().foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
             }
             .padding(14)
         }
@@ -131,9 +132,9 @@ struct CategoryView: View {
             .frame(height: 210)
             .clipped()
 
-            // Dark gradient so the name is readable on any tile
-            LinearGradient(colors: [Color.clear, Color.black.opacity(0.55)],
-                           startPoint: .center, endPoint: .bottom)
+            // Dark gradient so the name is readable on any tile (light or dark photo)
+            LinearGradient(colors: [Color.clear, Color.black.opacity(0.25), Color.black.opacity(0.75)],
+                           startPoint: .top, endPoint: .bottom)
                 .frame(maxWidth: .infinity)
                 .frame(height: 210)
 
@@ -147,6 +148,7 @@ struct CategoryView: View {
                     .italic()
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 1)
             }
             .padding(14)
         }
@@ -166,130 +168,3 @@ struct CategoryView: View {
 
 
 // MARK: - CATEGORY PRODUCTS (filtered list)
-struct CategoryProductsView: View {
-    let categoryTitle: String
-    let category: String
-
-    @StateObject private var service = ProductService()
-    @State private var isLoading = true
-    @State private var sort: ProductSort = .newest
-
-    private let inkBlack = Color(hex: "1A1A1A")
-    private let goldTan = Color(hex: "8B7355")
-    private let sandBg = Color(hex: "FAFAF8")
-
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-
-    // Products sorted by the chosen option
-    private var sortedProducts: [Product] {
-        switch sort {
-        case .newest:      return service.products
-        case .priceLow:    return service.products.sorted { $0.displayPrice < $1.displayPrice }
-        case .priceHigh:   return service.products.sorted { $0.displayPrice > $1.displayPrice }
-        case .name:        return service.products.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            sandBg.ignoresSafeArea()
-
-            if isLoading {
-                ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(0..<6, id: \.self) { _ in SkeletonCard() }
-                    }
-                    .padding(.horizontal, 18).padding(.top, 16)
-                }
-            } else if service.products.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "tray")
-                        .font(.system(size: 44)).foregroundColor(goldTan.opacity(0.4))
-                    Text("Nothing here yet")
-                        .font(.custom("Georgia", size: 20)).italic().foregroundColor(inkBlack)
-                    Text("Check back soon for new pieces.")
-                        .font(.system(size: 11)).foregroundColor(.secondary)
-                }
-            } else {
-                ScrollView(showsIndicators: false) {
-                    HStack {
-                        Text("\(service.products.count) piece\(service.products.count == 1 ? "" : "s")")
-                            .font(.system(size: 10)).foregroundColor(.secondary)
-                        Spacer()
-                        Menu {
-                            ForEach(ProductSort.allCases, id: \.self) { option in
-                                Button {
-                                    sort = option
-                                } label: {
-                                    HStack {
-                                        Text(option.label)
-                                        if sort == option { Image(systemName: "checkmark") }
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "arrow.up.arrow.down")
-                                    .font(.system(size: 10))
-                                Text(sort.label)
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .foregroundColor(inkBlack)
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            .overlay(Rectangle().stroke(Color(hex: "E8E8E4"), lineWidth: 0.5))
-                        }
-                    }
-                    .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 8)
-
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(sortedProducts) { product in
-                            NavigationLink {
-                                ProductDetailView(product: product)
-                            } label: {
-                                HniProductCard(product: product)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 18)
-
-                    Color.clear.frame(height: 110)
-                }
-            }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text(categoryTitle.uppercased())
-                        .font(.system(size: 11, weight: .medium))
-                        .tracking(2)
-                        .foregroundColor(inkBlack)
-                }
-            }
-        }
-        .task {
-            isLoading = true
-            await service.fetchProducts(category: category, search: "")
-            isLoading = false
-        }
-    }
-}
-
-#Preview {
-    NavigationStack { CategoryView() }
-}
-
-// MARK: - Sort options
-enum ProductSort: CaseIterable {
-    case newest, priceLow, priceHigh, name
-
-    var label: String {
-        switch self {
-        case .newest:    return "Newest"
-        case .priceLow:  return "Price: Low to High"
-        case .priceHigh: return "Price: High to Low"
-        case .name:      return "Name"
-        }
-    }
-}

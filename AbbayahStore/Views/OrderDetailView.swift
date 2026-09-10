@@ -15,6 +15,16 @@ struct OrderDetailView: View {
         steps.firstIndex(of: order.status) ?? 0
     }
 
+    private var orderDateText: String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = iso.date(from: order.createdAt) ?? ISO8601DateFormatter().date(from: order.createdAt)
+        guard let date else { return "" }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d, yyyy"
+        return out.string(from: date)
+    }
+
     var body: some View {
         ZStack {
             sandBg.ignoresSafeArea()
@@ -34,47 +44,80 @@ struct OrderDetailView: View {
 
                     Rectangle().frame(height: 8).foregroundColor(sandBg)
 
-                    // Horizontal timeline
+                    // Horizontal timeline (line with dots)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("DELIVERY STATUS")
                             .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
-                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 16)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 20)
 
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(alignment: .top, spacing: 0) {
+                        // Dots evenly spaced across a full-width line
+                        ZStack(alignment: .center) {
+                            // The connecting line, behind the dots
+                            Rectangle()
+                                .fill(inkBlack)
+                                .frame(height: 1.5)
+                                .padding(.horizontal, 34)
+
+                            HStack(spacing: 0) {
                                 ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                                    VStack(spacing: 8) {
-                                        HStack(spacing: 0) {
-                                            if i > 0 {
-                                                Rectangle().frame(height: 1)
-                                                    .foregroundColor(i <= currentStep ? inkBlack : borderColor)
-                                                    .frame(width: 40)
-                                            }
-                                            ZStack {
-                                                Circle()
-                                                    .fill(i <= currentStep ? inkBlack : Color(hex: "E8E8E4"))
-                                                    .frame(width: 24, height: 24)
-                                                if i <= currentStep {
-                                                    Image(systemName: "checkmark")
-                                                        .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
-                                                }
-                                            }
-                                            if i < steps.count - 1 {
-                                                Rectangle().frame(height: 1)
-                                                    .foregroundColor(i < currentStep ? inkBlack : borderColor)
-                                                    .frame(width: 40)
+                                    ZStack {
+                                        Circle()
+                                            .fill(sandBg)
+                                            .frame(width: 26, height: 26)
+                                        if i == currentStep {
+                                            // Current step — solid filled dot
+                                            Circle()
+                                                .fill(inkBlack)
+                                                .frame(width: 22, height: 22)
+                                        } else {
+                                            // Other steps — hollow ring
+                                            Circle()
+                                                .stroke(i < currentStep ? inkBlack : Color.gray.opacity(0.4), lineWidth: 1.5)
+                                                .frame(width: 22, height: 22)
+                                            if i < currentStep {
+                                                Circle().fill(inkBlack).frame(width: 8, height: 8)
                                             }
                                         }
-                                        Text(step.capitalized)
-                                            .font(.system(size: 10, weight: i <= currentStep ? .medium : .regular))
-                                            .foregroundColor(i <= currentStep ? inkBlack : Color.gray.opacity(0.4))
-                                            .frame(width: 80)
                                     }
+                                    .frame(maxWidth: .infinity)
                                 }
                             }
-                            .padding(.horizontal, 20).padding(.vertical, 8)
                         }
-                        .padding(.bottom, 16)
+                        .padding(.horizontal, 20)
+
+                        // Labels under each dot
+                        HStack(spacing: 0) {
+                            ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                                Text(step.capitalized)
+                                    .font(.system(size: 12, weight: i == currentStep ? .semibold : .regular))
+                                    .foregroundColor(i <= currentStep ? inkBlack : Color.gray.opacity(0.45))
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+
+                        // Date + CURRENT badge under the active step
+                        HStack(spacing: 0) {
+                            ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                                VStack(spacing: 6) {
+                                    if i == currentStep {
+                                        Text(orderDateText)
+                                            .font(.system(size: 11))
+                                            .foregroundColor(goldTan)
+                                        Text("CURRENT")
+                                            .font(.system(size: 8, weight: .semibold)).tracking(1)
+                                            .foregroundColor(inkBlack)
+                                            .padding(.horizontal, 10).padding(.vertical, 4)
+                                            .background(Capsule().fill(goldTan.opacity(0.25)))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 20)
                     }
                     .background(Color.white)
 
