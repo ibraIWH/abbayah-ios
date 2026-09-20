@@ -4,6 +4,7 @@ struct CheckoutView: View {
     @EnvironmentObject private var cart: CartStore
     @EnvironmentObject private var auth: AuthService
     @StateObject private var addressService = AddressService.shared
+    @StateObject private var settingsService = SettingsService()
 
     private let brandRed = Color(hex: "5C0A14")
     private let inkBlack = Color(hex: "1A1A1A")
@@ -21,6 +22,7 @@ struct CheckoutView: View {
     // ✅ Payment state
     @State private var paymentMethod: String = "cod"
     @State private var mobileMoneyPhone: String = ""
+    @State private var paymentRef: String = ""
 
     private let freeThreshold: Double = 200
     private var deliveryFee: Double { cart.totalPrice >= freeThreshold ? 0 : 25 }
@@ -30,17 +32,35 @@ struct CheckoutView: View {
         addressService.addresses.first { $0.id == selectedAddressID }
     }
 
-    // Zaad / eDahab require a mobile phone number
+    // Zaad / eDahab require a mobile phone number + transaction reference
     private var needsMobilePhone: Bool {
         paymentMethod == "zaad" || paymentMethod == "edahab"
     }
     private var mobilePhoneIsValid: Bool {
         mobileMoneyPhone.trimmingCharacters(in: .whitespaces).count >= 9
     }
+    private var paymentRefIsValid: Bool {
+        paymentRef.trimmingCharacters(in: .whitespaces).count >= 3
+    }
     private var canPlace: Bool {
         guard selectedAddress != nil, !cart.isEmpty, !isPlacing else { return false }
-        if needsMobilePhone { return mobilePhoneIsValid }
+        if needsMobilePhone { return mobilePhoneIsValid && paymentRefIsValid }
         return true
+    }
+
+    // Hiba's wallet number for the selected mobile-money method (from backend settings)
+    private var payToNumber: String {
+        switch paymentMethod {
+        case "zaad":   return settingsService.settings?.payment?.zaadNumber ?? ""
+        case "edahab": return settingsService.settings?.payment?.edahabNumber ?? ""
+        default:       return ""
+        }
+    }
+    private var paymentNote: String {
+        let note = settingsService.settings?.payment?.note ?? ""
+        return note.isEmpty
+            ? "Send the exact total to the number above, then enter your details below."
+            : note
     }
 
     private let paymentOptions: [(value: String, label: String, icon: String, desc: String)] = [
@@ -96,21 +116,75 @@ struct CheckoutView: View {
                     }
                     .padding(.horizontal, 20)
 
-                    // Mobile money phone input — only for Zaad/eDahab
+                    // Mobile money instructions + inputs — only for Zaad/eDahab
                     if needsMobilePhone {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("MOBILE MONEY NUMBER")
-                                .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(goldTan)
-                            TextField("065 123 4567", text: $mobileMoneyPhone)
-                                .font(.system(size: 14))
-                                .keyboardType(.phonePad)
-                                .padding(.vertical, 12).padding(.horizontal, 14)
-                                .overlay(Rectangle().stroke(
-                                    mobileMoneyPhone.isEmpty ? borderColor : inkBlack,
-                                    lineWidth: mobileMoneyPhone.isEmpty ? 0.5 : 1
-                                ))
-                            Text("You'll receive a \(paymentMethod == "zaad" ? "Zaad" : "eDahab") payment request on this number.")
-                                .font(.system(size: 10)).foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 16) {
+
+                            // 1. Where to send the money
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("SEND PAYMENT TO")
+                                    .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(goldTan)
+
+                                HStack(alignment: .center) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(payToNumber.isEmpty ? "Not set yet — contact us" : payToNumber)
+                                            .font(.custom("Georgia", size: payToNumber.isEmpty ? 15 : 20)).italic()
+                                            .foregroundColor(payToNumber.isEmpty ? .secondary : inkBlack)
+                                        Text("\(paymentMethod == "zaad" ? "Zaad" : "eDahab") · SAR \(grandTotal, specifier: "%.2f")")
+                                            .font(.system(size: 11)).foregroundColor(goldTan)
+                                    }
+                                    Spacer()
+                                    if !payToNumber.isEmpty {
+                                        Button {
+                                            UIPasteboard.general.string = payToNumber
+                                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        } label: {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.system(size: 15)).foregroundColor(inkBlack)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(warmCream)
+
+                                Text(paymentNote)
+                                    .font(.system(size: 10)).foregroundColor(.secondary)
+                            }
+
+                            // 2. The customer's own wallet number
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("YOUR MOBILE MONEY NUMBER")
+                                    .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(goldTan)
+                                TextField("065 123 4567", text: $mobileMoneyPhone)
+                                    .font(.system(size: 14))
+                                    .keyboardType(.phonePad)
+                                    .padding(.vertical, 12).padding(.horizontal, 14)
+                                    .overlay(Rectangle().stroke(
+                                        mobileMoneyPhone.isEmpty ? borderColor : inkBlack,
+                                        lineWidth: mobileMoneyPhone.isEmpty ? 0.5 : 1
+                                    ))
+                                Text("The number you sent the payment from.")
+                                    .font(.system(size: 10)).foregroundColor(.secondary)
+                            }
+
+                            // 3. Transaction reference (proof of payment)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("TRANSACTION REFERENCE")
+                                    .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(goldTan)
+                                TextField("e.g. 8830421", text: $paymentRef)
+                                    .font(.system(size: 14))
+                                    .autocorrectionDisabled(true)
+                                    .textInputAutocapitalization(.characters)
+                                    .padding(.vertical, 12).padding(.horizontal, 14)
+                                    .overlay(Rectangle().stroke(
+                                        paymentRef.isEmpty ? borderColor : inkBlack,
+                                        lineWidth: paymentRef.isEmpty ? 0.5 : 1
+                                    ))
+                                Text("The confirmation code from your \(paymentMethod == "zaad" ? "Zaad" : "eDahab") message.")
+                                    .font(.system(size: 10)).foregroundColor(.secondary)
+                            }
                         }
                         .padding(.horizontal, 20).padding(.top, 16)
                     }
@@ -182,6 +256,7 @@ struct CheckoutView: View {
             OrderConfirmedView(orderNumber: order.number)
         }
         .task {
+            await settingsService.fetchSettings()
             await addressService.fetch()
             if selectedAddressID == nil {
                 selectedAddressID = (addressService.addresses.first { $0.isDefault == true }
@@ -199,6 +274,7 @@ struct CheckoutView: View {
         if isPlacing { return "PLACING ORDER..." }
         if selectedAddress == nil { return "SELECT AN ADDRESS" }
         if needsMobilePhone && !mobilePhoneIsValid { return "ENTER MOBILE NUMBER" }
+        if needsMobilePhone && !paymentRefIsValid { return "ENTER TRANSACTION REF" }
         return "PLACE ORDER"
     }
 
@@ -325,7 +401,8 @@ struct CheckoutView: View {
                 city: addr.city,
                 phone: addr.phone ?? "",
                 paymentMethod: paymentMethod,
-                mobileMoneyPhone: needsMobilePhone ? mobileMoneyPhone : nil
+                mobileMoneyPhone: needsMobilePhone ? mobileMoneyPhone : nil,
+                paymentRef: needsMobilePhone ? paymentRef : nil
             )
             cart.clear()
             placedOrder = PlacedOrder(number: order.orderNumber)

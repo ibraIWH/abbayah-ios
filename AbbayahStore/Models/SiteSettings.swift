@@ -5,6 +5,7 @@ struct SiteSettings: Codable, Equatable {
     let newsText: String?
     let newsActive: Bool?
     let promo: Promo?
+    let payment: Payment?
 
     struct Hero: Codable, Equatable {
         let eyebrow: String?
@@ -21,5 +22,12 @@ struct SiteSettings: Codable, Equatable {
         let line2: String?
         let subtitle: String?
         let active: Bool?
+    }
+
+    // Mobile-money numbers the customer sends payment to (Zaad / eDahab).
+    struct Payment: Codable, Equatable {
+        let zaadNumber: String?
+        let edahabNumber: String?
+        let note: String?
     }
 }

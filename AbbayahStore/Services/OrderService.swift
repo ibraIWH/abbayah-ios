@@ -19,11 +19,12 @@ struct Order: Identifiable, Decodable, Hashable {
     // ✅ Payment info
     let paymentMethod: String?
     let phoneNumber: String?
+    let paymentRef: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case orderNumber, items, shippingAddress, subtotal, deliveryFee, total, status, createdAt
-        case paymentMethod, phoneNumber
+        case paymentMethod, phoneNumber, paymentRef
     }
 
     static func == (lhs: Order, rhs: Order) -> Bool { lhs.id == rhs.id }
@@ -55,6 +56,11 @@ struct Order: Identifiable, Decodable, Hashable {
         case "cod":       return "banknote.fill"
         default:          return "banknote.fill"
         }
+    }
+
+    // True when this order used a mobile-money method that carries a phone + reference
+    var isMobileMoney: Bool {
+        paymentMethod == "zaad" || paymentMethod == "edahab"
     }
 }
 
@@ -109,7 +115,8 @@ class OrderService: ObservableObject {
         city: String,
         phone: String,
         paymentMethod: String,
-        mobileMoneyPhone: String?
+        mobileMoneyPhone: String?,
+        paymentRef: String?
     ) async throws -> CreatedOrder {
         guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
@@ -139,9 +146,13 @@ class OrderService: ObservableObject {
             "paymentMethod": paymentMethod
         ]
 
-        // Only include phoneNumber for Zaad/eDahab (mobile money)
+        // Mobile money (Zaad / eDahab): send the customer's wallet number and the
+        // transaction reference they entered after paying.
         if paymentMethod == "zaad" || paymentMethod == "edahab" {
             body["phoneNumber"] = mobileMoneyPhone ?? phone
+            if let ref = paymentRef, !ref.trimmingCharacters(in: .whitespaces).isEmpty {
+                body["paymentRef"] = ref.trimmingCharacters(in: .whitespaces)
+            }
         }
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)

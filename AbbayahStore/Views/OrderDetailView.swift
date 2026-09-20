@@ -132,9 +132,13 @@ struct OrderDetailView: View {
                                 Text(order.paymentLabel)
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(inkBlack)
-                                if let phone = order.phoneNumber, !phone.isEmpty,
-                                   order.paymentMethod == "zaad" || order.paymentMethod == "edahab" {
-                                    Text(phone)
+                                if order.isMobileMoney, let phone = order.phoneNumber, !phone.isEmpty {
+                                    Text("From \(phone)")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                if order.isMobileMoney, let ref = order.paymentRef, !ref.isEmpty {
+                                    Text("Ref: \(ref)")
                                         .font(.system(size: 11))
                                         .foregroundColor(.secondary)
                                 }
