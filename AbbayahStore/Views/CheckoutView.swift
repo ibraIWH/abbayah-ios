@@ -9,6 +9,7 @@ struct CheckoutView: View {
     private let inkBlack = Color(hex: "1A1A1A")
     private let warmCream = Color(hex: "F5F0E8")
     private let goldTan = Color(hex: "8B7355")
+    private let gold = Color(hex: "C4A882")
     private let sandBg = Color(hex: "FAFAF8")
     private let borderColor = Color(hex: "E8E8E4")
 
@@ -17,6 +18,10 @@ struct CheckoutView: View {
     @State private var errorMessage = ""
     @State private var placedOrder: PlacedOrder?
 
+    // ✅ Payment state
+    @State private var paymentMethod: String = "cod"
+    @State private var mobileMoneyPhone: String = ""
+
     private let freeThreshold: Double = 200
     private var deliveryFee: Double { cart.totalPrice >= freeThreshold ? 0 : 25 }
     private var grandTotal: Double { cart.totalPrice + deliveryFee }
@@ -24,7 +29,29 @@ struct CheckoutView: View {
     private var selectedAddress: Address? {
         addressService.addresses.first { $0.id == selectedAddressID }
     }
-    private var canPlace: Bool { selectedAddress != nil && !cart.isEmpty && !isPlacing }
+
+    // Zaad / eDahab require a mobile phone number
+    private var needsMobilePhone: Bool {
+        paymentMethod == "zaad" || paymentMethod == "edahab"
+    }
+    private var mobilePhoneIsValid: Bool {
+        mobileMoneyPhone.trimmingCharacters(in: .whitespaces).count >= 9
+    }
+    private var canPlace: Bool {
+        guard selectedAddress != nil, !cart.isEmpty, !isPlacing else { return false }
+        if needsMobilePhone { return mobilePhoneIsValid }
+        return true
+    }
+
+    private let paymentOptions: [(value: String, label: String, icon: String, desc: String)] = [
+        ("zaad",      "Zaad",             "phone.fill",       "Telesom"),
+        ("edahab",    "eDahab",           "phone.fill",       "Somcable"),
+        ("applepay",  "Apple Pay",        "applelogo",        "Apple Wallet"),
+        ("googlepay", "Google Pay",       "g.circle.fill",    "Google Wallet"),
+        ("card",      "Card",             "creditcard.fill",  "Credit / Debit"),
+        ("paypal",    "PayPal",           "p.circle.fill",    "PayPal"),
+        ("cod",       "Cash on Delivery", "banknote.fill",    "Pay on arrival")
+    ]
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -33,6 +60,7 @@ struct CheckoutView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
 
+                    // ── DELIVERY ADDRESS ─────────────
                     Text("DELIVERY ADDRESS")
                         .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
                         .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 14)
@@ -53,11 +81,46 @@ struct CheckoutView: View {
                         addAddressButton.padding(.horizontal, 20).padding(.top, 12)
                     }
 
+                    // ── PAYMENT METHOD ───────────────
+                    Text("PAYMENT METHOD")
+                        .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                        .padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 12)
+
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                        spacing: 10
+                    ) {
+                        ForEach(paymentOptions, id: \.value) { option in
+                            paymentTile(option)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+
+                    // Mobile money phone input — only for Zaad/eDahab
+                    if needsMobilePhone {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("MOBILE MONEY NUMBER")
+                                .font(.system(size: 9, weight: .medium)).tracking(1.5).foregroundColor(goldTan)
+                            TextField("065 123 4567", text: $mobileMoneyPhone)
+                                .font(.system(size: 14))
+                                .keyboardType(.phonePad)
+                                .padding(.vertical, 12).padding(.horizontal, 14)
+                                .overlay(Rectangle().stroke(
+                                    mobileMoneyPhone.isEmpty ? borderColor : inkBlack,
+                                    lineWidth: mobileMoneyPhone.isEmpty ? 0.5 : 1
+                                ))
+                            Text("You'll receive a \(paymentMethod == "zaad" ? "Zaad" : "eDahab") payment request on this number.")
+                                .font(.system(size: 10)).foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 20).padding(.top, 16)
+                    }
+
                     if !errorMessage.isEmpty {
                         Text(errorMessage).font(.system(size: 11)).foregroundColor(.red)
                             .padding(.horizontal, 20).padding(.top, 14)
                     }
 
+                    // ── ORDER SUMMARY ────────────────
                     Text("ORDER SUMMARY")
                         .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
                         .padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 12)
@@ -88,17 +151,17 @@ struct CheckoutView: View {
                     }
                     .background(Color.white)
 
-                    Color.clear.frame(height: 120)
+                    Color.clear.frame(height: 140)
                 }
             }
 
+            // ── STICKY CTA ──────────────────────
             VStack(spacing: 0) {
                 Rectangle().frame(height: 0.5).foregroundColor(borderColor)
                 Button {
                     Task { await placeOrder() }
                 } label: {
-                    Text(isPlacing ? "PLACING ORDER..."
-                         : selectedAddress == nil ? "SELECT AN ADDRESS" : "PLACE ORDER")
+                    Text(ctaLabel)
                         .font(.system(size: 11, weight: .medium)).tracking(3)
                         .foregroundColor(warmCream)
                         .frame(maxWidth: .infinity).frame(height: 52)
@@ -124,13 +187,62 @@ struct CheckoutView: View {
                 selectedAddressID = (addressService.addresses.first { $0.isDefault == true }
                                      ?? addressService.addresses.first)?.id
             }
+            // Prefill mobile money phone from the selected address
+            if mobileMoneyPhone.isEmpty, let p = selectedAddress?.phone, !p.isEmpty {
+                mobileMoneyPhone = p
+            }
         }
     }
 
+    // MARK: - CTA label logic
+    private var ctaLabel: String {
+        if isPlacing { return "PLACING ORDER..." }
+        if selectedAddress == nil { return "SELECT AN ADDRESS" }
+        if needsMobilePhone && !mobilePhoneIsValid { return "ENTER MOBILE NUMBER" }
+        return "PLACE ORDER"
+    }
+
+    // MARK: - Payment tile
+    private func paymentTile(_ option: (value: String, label: String, icon: String, desc: String)) -> some View {
+        let isSelected = paymentMethod == option.value
+        return Button {
+            paymentMethod = option.value
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: option.icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(isSelected ? inkBlack : goldTan)
+                Text(option.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(inkBlack)
+                    .multilineTextAlignment(.center)
+                Text(option.desc)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(brandRed)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(isSelected ? Color(hex: "F5F0E8") : Color.white)
+            .overlay(Rectangle().stroke(isSelected ? brandRed : borderColor, lineWidth: isSelected ? 1.5 : 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Address row
     private func addressRow(_ addr: Address) -> some View {
         let isSelected = addr.id == selectedAddressID
         return Button {
             selectedAddressID = addr.id
+            // Prefill mobile money phone if not set
+            if mobileMoneyPhone.isEmpty, let p = addr.phone, !p.isEmpty {
+                mobileMoneyPhone = p
+            }
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
@@ -211,7 +323,9 @@ struct CheckoutView: View {
                 name: addr.name,
                 line1: addr.line1,
                 city: addr.city,
-                phone: addr.phone ?? ""
+                phone: addr.phone ?? "",
+                paymentMethod: paymentMethod,
+                mobileMoneyPhone: needsMobilePhone ? mobileMoneyPhone : nil
             )
             cart.clear()
             placedOrder = PlacedOrder(number: order.orderNumber)

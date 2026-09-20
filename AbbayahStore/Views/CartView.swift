@@ -83,7 +83,7 @@ struct CartView: View {
                         .background(Color.white)
                         .padding(.top, 14)
 
-                        // ── YOU MAY ALSO LIKE ──────────────
+                        // You May Also Like
                         if !suggestions.isEmpty {
                             VStack(alignment: .leading, spacing: 0) {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -138,31 +138,37 @@ struct CartView: View {
                         Color.clear.frame(height: 120)
                     }
                 }
-
-                // Sticky checkout
-                VStack(spacing: 0) {
-                    Rectangle().frame(height: 0.5).foregroundColor(borderColor)
-                    Button {
-                        if auth.isLoggedIn {
-                            showCheckout = true
-                        } else {
-                            showSignIn = true
-                        }
-                    } label: {
-                        Text(auth.isLoggedIn ? "PROCEED TO CHECKOUT" : "SIGN IN TO CHECKOUT")
-                            .font(.system(size: 11, weight: .medium))
-                            .tracking(3)
-                            .foregroundColor(warmCream)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(brandRed)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .padding(.bottom, 90)
-                    .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
+                // ✅ Pull-to-refresh: re-fetch cart + suggestions from server
+                .refreshable {
+                    async let cartReload: Void = cart.loadFromServer()
+                    async let suggReload: Void = suggestionService.fetchProducts(category: "All", search: "")
+                    _ = await (cartReload, suggReload)
                 }
+            }
+
+            // Sticky checkout
+            VStack(spacing: 0) {
+                Rectangle().frame(height: 0.5).foregroundColor(borderColor)
+                Button {
+                    if auth.isLoggedIn {
+                        showCheckout = true
+                    } else {
+                        showSignIn = true
+                    }
+                } label: {
+                    Text(auth.isLoggedIn ? "PROCEED TO CHECKOUT" : "SIGN IN TO CHECKOUT")
+                        .font(.system(size: 11, weight: .medium))
+                        .tracking(3)
+                        .foregroundColor(warmCream)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(brandRed)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .padding(.bottom, 90)
+                .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -182,7 +188,7 @@ struct CartView: View {
         }
     }
 
-    // MARK: - Empty cart (with suggestions so it's never a dead end)
+    // MARK: - Empty cart (with pull-to-refresh too)
     private var emptyCart: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
@@ -231,6 +237,12 @@ struct CartView: View {
 
                 Color.clear.frame(height: 120)
             }
+        }
+        // ✅ Pull-to-refresh on empty state too
+        .refreshable {
+            async let cartReload: Void = cart.loadFromServer()
+            async let suggReload: Void = suggestionService.fetchProducts(category: "All", search: "")
+            _ = await (cartReload, suggReload)
         }
     }
 

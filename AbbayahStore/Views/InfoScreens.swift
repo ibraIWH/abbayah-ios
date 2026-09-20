@@ -13,7 +13,7 @@ struct FAQView: View {
         ("Is delivery free?",
          "Delivery is free on all orders over SAR 200. For orders below that, a flat SAR 25 delivery fee applies."),
         ("What payment methods do you accept?",
-         "We currently accept cash on delivery. More payment options are coming soon."),
+         "We accept Zaad, eDahab, Apple Pay, Google Pay, credit and debit cards, PayPal, and Cash on Delivery."),
         ("Can I return or exchange an item?",
          "Yes. Items can be returned or exchanged within 7 days of delivery, provided they are unworn and in their original condition. Contact us to arrange a return."),
         ("How do I know my size?",

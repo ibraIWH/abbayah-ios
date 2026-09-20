@@ -13,14 +13,19 @@ extension Color {
 }
 
 // MARK: - Shared Nav Logo
+// Uses a transparent PNG (AbyrLogoDark / AbyrLogo) so the mark sits cleanly
+// on any background — light navs, dark hero bleeding through, tinted screens.
+// Do NOT use .renderingMode(.template) here: that would flatten the two-tone
+// gold + dark brand identity into a single solid colour.
 struct AbyrNavLogo: View {
     var dark: Bool = true
     var body: some View {
         Image(dark ? "AbyrLogoDark" : "AbyrLogo")
             .resizable()
-            .renderingMode(.original)
+            .renderingMode(.original)   // preserves the gold + dark tones, and transparency
             .scaledToFit()
             .frame(height: 75)
+            .accessibilityLabel("Abyr")
     }
 }
 

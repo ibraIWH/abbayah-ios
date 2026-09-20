@@ -50,27 +50,23 @@ struct OrderDetailView: View {
                             .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
                             .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 20)
 
-                        // Dots evenly spaced across a full-width line
                         ZStack(alignment: .center) {
-                            // The connecting line, behind the dots
                             Rectangle()
                                 .fill(inkBlack)
                                 .frame(height: 1.5)
                                 .padding(.horizontal, 34)
 
                             HStack(spacing: 0) {
-                                ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                                ForEach(Array(steps.enumerated()), id: \.offset) { i, _ in
                                     ZStack {
                                         Circle()
                                             .fill(sandBg)
                                             .frame(width: 26, height: 26)
                                         if i == currentStep {
-                                            // Current step — solid filled dot
                                             Circle()
                                                 .fill(inkBlack)
                                                 .frame(width: 22, height: 22)
                                         } else {
-                                            // Other steps — hollow ring
                                             Circle()
                                                 .stroke(i < currentStep ? inkBlack : Color.gray.opacity(0.4), lineWidth: 1.5)
                                                 .frame(width: 22, height: 22)
@@ -85,7 +81,6 @@ struct OrderDetailView: View {
                         }
                         .padding(.horizontal, 20)
 
-                        // Labels under each dot
                         HStack(spacing: 0) {
                             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                                 Text(step.capitalized)
@@ -97,9 +92,8 @@ struct OrderDetailView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 12)
 
-                        // Date + CURRENT badge under the active step
                         HStack(spacing: 0) {
-                            ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                            ForEach(Array(steps.enumerated()), id: \.offset) { i, _ in
                                 VStack(spacing: 6) {
                                     if i == currentStep {
                                         Text(orderDateText)
@@ -118,6 +112,36 @@ struct OrderDetailView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         .padding(.bottom, 20)
+                    }
+                    .background(Color.white)
+
+                    Rectangle().frame(height: 8).foregroundColor(sandBg)
+
+                    // ✅ PAYMENT METHOD
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("PAYMENT")
+                            .font(.system(size: 9, weight: .medium)).tracking(2).foregroundColor(goldTan)
+                            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
+
+                        HStack(spacing: 12) {
+                            Image(systemName: order.paymentIcon)
+                                .font(.system(size: 20))
+                                .foregroundColor(goldTan)
+                                .frame(width: 26)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(order.paymentLabel)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(inkBlack)
+                                if let phone = order.phoneNumber, !phone.isEmpty,
+                                   order.paymentMethod == "zaad" || order.paymentMethod == "edahab" {
+                                    Text(phone)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 20).padding(.bottom, 20)
                     }
                     .background(Color.white)
 

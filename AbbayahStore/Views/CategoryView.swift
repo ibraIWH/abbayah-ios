@@ -11,6 +11,7 @@ struct CategoryView: View {
     private let warmCream = Color(hex: "F5F0E8")
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private let tileHeight: CGFloat = 210
 
     var body: some View {
         ZStack {
@@ -52,7 +53,6 @@ struct CategoryView: View {
                         }
                         .frame(maxWidth: .infinity).padding(.top, 50)
                     } else {
-                        // "Shop All" always first, then one tile per backend category
                         LazyVGrid(columns: columns, spacing: 12) {
                             NavigationLink {
                                 ProductBrowseView(initialCategory: "All", showSearchBar: false, showCategoryChips: false, navTitle: "All Products")
@@ -85,12 +85,11 @@ struct CategoryView: View {
         .refreshable { await collectionService.fetchCollections() }
     }
 
+    // MARK: - Shop All tile
     private func shopAllTile() -> some View {
         ZStack(alignment: .bottomLeading) {
             LinearGradient(colors: [Color(hex: "3D0608"), Color(hex: "5C0A14")],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-                .frame(maxWidth: .infinity)
-                .frame(height: 210)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("EVERYTHING")
@@ -100,44 +99,58 @@ struct CategoryView: View {
                     .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
             }
             .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 210)
-        .clipped()
+        .frame(height: tileHeight)
         .contentShape(Rectangle())
     }
 
+    // MARK: - Category tile (bulletproof layout)
+    //
+    // The pattern: a Color.clear of the exact tile size owns the layout,
+    // and the AsyncImage is drawn on top with .overlay(). Because the
+    // Color.clear is the only thing that determines the layout size,
+    // the image can NEVER overflow into neighbouring cells.
+    // .clipped() then trims anything that goes past the tile bounds.
     private func categoryTile(name: String, image: String) -> some View {
         let hasImage = !image.trimmingCharacters(in: .whitespaces).isEmpty
 
         return ZStack(alignment: .bottomLeading) {
-            // Background layer — identical frame for every tile
-            Group {
-                if hasImage {
-                    AsyncImage(url: URL(string: image)) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        case .empty:
-                            ZStack { brandTile; ProgressView().tint(warmCream) }
-                        default:
+
+            // 1. Fixed-size layout owner + image overlay
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: tileHeight)
+                .overlay(
+                    Group {
+                        if hasImage {
+                            AsyncImage(url: URL(string: image)) { phase in
+                                switch phase {
+                                case .success(let img):
+                                    img.resizable()
+                                        .scaledToFill()
+                                case .empty:
+                                    ZStack { brandTile; ProgressView().tint(warmCream) }
+                                default:
+                                    brandTile
+                                }
+                            }
+                        } else {
                             brandTile
                         }
                     }
-                } else {
-                    brandTile
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 210)
-            .clipped()
+                )
+                .clipped()
 
-            // Dark gradient so the name is readable on any tile (light or dark photo)
+            // 2. Dark gradient for text legibility
             LinearGradient(colors: [Color.clear, Color.black.opacity(0.25), Color.black.opacity(0.75)],
                            startPoint: .top, endPoint: .bottom)
                 .frame(maxWidth: .infinity)
-                .frame(height: 210)
+                .frame(height: tileHeight)
+                .allowsHitTesting(false)
 
+            // 3. Category name
             VStack(alignment: .leading, spacing: 3) {
                 if !hasImage {
                     Text("COLLECTION")
@@ -153,11 +166,10 @@ struct CategoryView: View {
             .padding(14)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 210)
-        .clipped()
+        .frame(height: tileHeight)
+        .contentShape(Rectangle())
     }
 
-    // Branded gradient used when a category has no photo (matches Shop All)
     private var brandTile: some View {
         LinearGradient(
             colors: [Color(hex: "6b5444"), Color(hex: "3D0608")],

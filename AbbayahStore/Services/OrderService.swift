@@ -16,14 +16,46 @@ struct Order: Identifiable, Decodable, Hashable {
     let total: Double
     let status: String
     let createdAt: String
+    // ✅ Payment info
+    let paymentMethod: String?
+    let phoneNumber: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case orderNumber, items, shippingAddress, subtotal, deliveryFee, total, status, createdAt
+        case paymentMethod, phoneNumber
     }
 
     static func == (lhs: Order, rhs: Order) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    // Human-readable payment label
+    var paymentLabel: String {
+        switch paymentMethod {
+        case "zaad":      return "Zaad"
+        case "edahab":    return "eDahab"
+        case "applepay":  return "Apple Pay"
+        case "googlepay": return "Google Pay"
+        case "card":      return "Card"
+        case "paypal":    return "PayPal"
+        case "cod":       return "Cash on Delivery"
+        default:          return paymentMethod?.capitalized ?? "Cash on Delivery"
+        }
+    }
+
+    // SF Symbol for the payment method
+    var paymentIcon: String {
+        switch paymentMethod {
+        case "zaad":      return "phone.fill"
+        case "edahab":    return "phone.fill"
+        case "applepay":  return "applelogo"
+        case "googlepay": return "g.circle.fill"
+        case "card":      return "creditcard.fill"
+        case "paypal":    return "p.circle.fill"
+        case "cod":       return "banknote.fill"
+        default:          return "banknote.fill"
+        }
+    }
 }
 
 struct OrderLineItem: Decodable, Hashable {
@@ -70,7 +102,15 @@ class OrderService: ObservableObject {
     private let baseURL = "https://abbayah-backend.onrender.com/api/orders"
 
     // MARK: - Place an order
-    func placeOrder(items: [CartItem], name: String, line1: String, city: String, phone: String) async throws -> CreatedOrder {
+    func placeOrder(
+        items: [CartItem],
+        name: String,
+        line1: String,
+        city: String,
+        phone: String,
+        paymentMethod: String,
+        mobileMoneyPhone: String?
+    ) async throws -> CreatedOrder {
         guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -88,7 +128,7 @@ class OrderService: ObservableObject {
             ] as [String: Any]
         }
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "items": itemsPayload,
             "shippingAddress": [
                 "name": name,
@@ -96,8 +136,14 @@ class OrderService: ObservableObject {
                 "city": city,
                 "phone": phone
             ],
-            "paymentMethod": "cod"
+            "paymentMethod": paymentMethod
         ]
+
+        // Only include phoneNumber for Zaad/eDahab (mobile money)
+        if paymentMethod == "zaad" || paymentMethod == "edahab" {
+            body["phoneNumber"] = mobileMoneyPhone ?? phone
+        }
+
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: req)

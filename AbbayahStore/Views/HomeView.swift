@@ -1,5 +1,13 @@
 import SwiftUI
 
+// MARK: - Scroll offset preference key
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Bottom Bar Tabs
 enum BottomTab {
     case home, search, categories, favorites, cart, profile
@@ -21,6 +29,7 @@ struct HomeView: View {
     @State private var searchText: String = ""
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
+    @State private var navScrolled: Bool = false
 
     private let categories = ["All", "Abaya", "Jalabiya", "Niqab", "Bisht", "School"]
 
@@ -63,6 +72,9 @@ struct HomeView: View {
                 }
                 .ignoresSafeArea(edges: .bottom)
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(navScrolled ? Color.white : Color.clear, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .applyScrollEdgeEffectStyle()
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button {
@@ -92,7 +104,6 @@ struct HomeView: View {
                                             .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 0, y: 0)
                                     }
                                 }
                                 .frame(height: 28)
@@ -113,7 +124,6 @@ struct HomeView: View {
                                             .frame(minWidth: 18, minHeight: 18)
                                             .background(Color(hex: "5C0A14"))
                                             .clipShape(Capsule())
-                                            .offset(x: 0, y: 0)
                                     }
                                 }
                                 .frame(height: 28)
@@ -125,7 +135,6 @@ struct HomeView: View {
             }
             .tint(.black)
             .task {
-                // Settings first (controls hero + banner), all concurrent so nothing staggers in
                 async let s: Void = settingsService.fetchSettings()
                 async let c: Void = collectionService.fetchCollections()
                 async let o: Void = offerService.fetchOffers()
@@ -143,7 +152,6 @@ struct HomeView: View {
     private var homeContent: some View {
         VStack(spacing: 0) {
 
-            // Pinned so it stays visible and never slides under the nav bar
             if let news = settingsService.settings?.newsText, !news.isEmpty {
                 MarqueeText(
                     text: news,
@@ -158,6 +166,14 @@ struct HomeView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
+
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: ScrollOffsetKey.self,
+                            value: geo.frame(in: .named("homeScroll")).minY
+                        )
+                    }
+                    .frame(height: 0)
 
                     ZStack(alignment: .bottomLeading) {
                         AsyncImage(url: URL(string: heroImageURL)) { phase in
@@ -182,7 +198,6 @@ struct HomeView: View {
                         )
                         .frame(height: 480)
 
-                        // Hero text — only once settings have loaded (prevents placeholder flash)
                         if let hero = settingsService.settings?.hero {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(hero.eyebrow ?? "")
@@ -288,6 +303,19 @@ struct HomeView: View {
                     Color.clear.frame(height: 110)
                 }
             }
+            .coordinateSpace(name: "homeScroll")
+            .onPreferenceChange(ScrollOffsetKey.self) { value in
+                let shouldBeScrolled = value < -20
+                if shouldBeScrolled != navScrolled {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        navScrolled = shouldBeScrolled
+                    }
+                }
+            }
+            // ✅ Pull-to-refresh: refreshAll() wraps the fetches in an
+            //    unstructured Task via withCheckedContinuation, so SwiftUI's
+            //    cancellation of the refreshable task can't kill the network
+            //    calls (fixes the -999 NSURLErrorCancelled issue).
             .refreshable {
                 await refreshAll()
             }
@@ -328,13 +356,11 @@ struct HomeView: View {
         }
     }
 
-    // Side-scrolling editorial offer banner (web-style card)
     private func offerBanner(title: String, badge: String, subtitle: String, image: String) -> some View {
         let cardWidth = UIScreen.main.bounds.width - 48
         let cardHeight: CGFloat = 260
 
         return HStack(spacing: 0) {
-            // LEFT: image half
             AsyncImage(url: URL(string: image)) { phase in
                 switch phase {
                 case .success(let img):
@@ -347,7 +373,6 @@ struct HomeView: View {
             .frame(width: cardWidth * 0.5, height: cardHeight)
             .clipped()
 
-            // RIGHT: dark text panel
             VStack(alignment: .leading, spacing: 0) {
                 if !badge.isEmpty {
                     Text(badge)
@@ -531,17 +556,28 @@ struct HomeView: View {
         Task { await refreshAll() }
     }
 
-    /// Reload everything the home screen shows, live from the server.
+    /// Sequential fetch of everything the Home screen shows.
+    ///
+    /// Wrapped in a `withCheckedContinuation` + inner `Task { }` because
+    /// SwiftUI's `.refreshable` cancels its own task as soon as the pull
+    /// gesture releases (or the view re-renders). Without the wrapper,
+    /// every `URLSession.data(for:)` call dies with `-999 NSURLErrorCancelled`
+    /// the moment the task is cancelled, and nothing refreshes.
+    ///
+    /// The inner `Task { }` is unstructured — NOT a child of the refreshable
+    /// task — so it keeps running even after the outer task is cancelled.
     private func refreshAll() async {
-        async let s: Void = settingsService.fetchSettings()
-        async let c: Void = collectionService.fetchCollections()
-        async let o: Void = offerService.fetchOffers()
-        async let p: Void = refreshProducts()
-        _ = await (s, c, o, p)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Task {
+                await settingsService.fetchSettings()
+                await collectionService.fetchCollections()
+                await offerService.fetchOffers()
+                await refreshProducts()
+                continuation.resume()
+            }
+        }
     }
 
-    /// The hero title is set from the admin panel, so its length varies a lot.
-    /// Short titles get a smaller size so a single word can't swallow the hero.
     private func heroTitleSize(_ title: String) -> CGFloat {
         switch title.count {
         case 0...6:   return 28
@@ -551,7 +587,6 @@ struct HomeView: View {
         }
     }
 
-    // Hero image: only the backend image. Empty → shows the gradient placeholder (no stock photo).
     private var heroImageURL: String {
         settingsService.settings?.hero?.imageUrl ?? ""
     }
@@ -561,6 +596,18 @@ struct HomeView: View {
         errorMessage = nil
         await service.fetchProducts(category: selectedCategory, search: searchText)
         isLoading = false
+    }
+}
+
+// MARK: - iOS 26 helper
+extension View {
+    @ViewBuilder
+    func applyScrollEdgeEffectStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
+        }
     }
 }
 
@@ -578,7 +625,6 @@ struct HniProductCard: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Image
             AsyncImage(url: URL(string: product.imageUrl)) { phase in
                 switch phase {
                 case .success(let image):
@@ -600,14 +646,12 @@ struct HniProductCard: View {
             .frame(maxWidth: .infinity)
             .clipped()
 
-            // Bottom gradient for text legibility
             LinearGradient(
                 colors: [Color.clear, Color.black.opacity(0.15), Color.black.opacity(0.65)],
                 startPoint: .center, endPoint: .bottom
             )
             .frame(height: 280)
 
-            // Text overlay (category, name, price)
             VStack(alignment: .leading, spacing: 4) {
                 Text(product.category.uppercased())
                     .font(.system(size: 8, weight: .semibold))
@@ -641,7 +685,6 @@ struct HniProductCard: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
 
-            // Top row: discount/tag (left) + heart (right)
             VStack {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -751,7 +794,6 @@ struct MarqueeText: View {
     @State private var animate = false
     @State private var contentWidth: CGFloat = 0
 
-    // One repetition of the message
     private func unit() -> some View {
         HStack(spacing: 10) {
             Text(text)
@@ -769,23 +811,19 @@ struct MarqueeText: View {
     var body: some View {
         GeometryReader { geo in
             let screenW = geo.size.width
-            // How many repetitions to fill one screen width (at least 1)
             let repsPerScreen = contentWidth > 0 ? Int((screenW / contentWidth).rounded(.up)) + 1 : 4
 
             HStack(spacing: 0) {
-                // Track A
                 HStack(spacing: 0) {
                     ForEach(0..<max(repsPerScreen, 1), id: \.self) { _ in unit() }
                 }
                 .background(
                     GeometryReader { p in
                         Color.clear.onAppear {
-                            // width of ONE unit = trackA width / reps
                             contentWidth = p.size.width / CGFloat(max(repsPerScreen, 1))
                         }
                     }
                 )
-                // Track B (identical) — sits right after A for seamless wrap
                 HStack(spacing: 0) {
                     ForEach(0..<max(repsPerScreen, 1), id: \.self) { _ in unit() }
                 }
@@ -799,7 +837,6 @@ struct MarqueeText: View {
                 value: animate
             )
             .onAppear {
-                // Kick the animation on next runloop, once layout is measured
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     animate = true
                 }

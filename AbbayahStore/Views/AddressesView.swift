@@ -62,6 +62,10 @@ struct AddressesView: View {
                 }
                 .padding(20)
             }
+            // ✅ Pull-to-refresh
+            .refreshable {
+                await service.fetch()
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
