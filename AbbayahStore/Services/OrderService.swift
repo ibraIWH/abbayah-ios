@@ -16,7 +16,6 @@ struct Order: Identifiable, Decodable, Hashable {
     let total: Double
     let status: String
     let createdAt: String
-    // ✅ Payment info
     let paymentMethod: String?
     let phoneNumber: String?
     let paymentRef: String?
@@ -30,7 +29,6 @@ struct Order: Identifiable, Decodable, Hashable {
     static func == (lhs: Order, rhs: Order) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
-    // Human-readable payment label
     var paymentLabel: String {
         switch paymentMethod {
         case "zaad":      return "Zaad"
@@ -44,23 +42,16 @@ struct Order: Identifiable, Decodable, Hashable {
         }
     }
 
-    // SF Symbol for the payment method
     var paymentIcon: String {
         switch paymentMethod {
-        case "zaad":      return "phone.fill"
-        case "edahab":    return "phone.fill"
-        case "applepay":  return "applelogo"
-        case "googlepay": return "g.circle.fill"
-        case "card":      return "creditcard.fill"
-        case "paypal":    return "p.circle.fill"
-        case "cod":       return "banknote.fill"
-        default:          return "banknote.fill"
+        case "zaad", "edahab": return "phone.fill"
+        case "applepay":       return "applelogo"
+        case "googlepay":      return "g.circle.fill"
+        case "card":           return "creditcard.fill"
+        case "paypal":         return "p.circle.fill"
+        case "cod":            return "banknote.fill"
+        default:               return "banknote.fill"
         }
-    }
-
-    // True when this order used a mobile-money method that carries a phone + reference
-    var isMobileMoney: Bool {
-        paymentMethod == "zaad" || paymentMethod == "edahab"
     }
 }
 
@@ -89,14 +80,10 @@ enum OrderError: LocalizedError {
             return "You're not signed in. Please sign in and try again."
         case .server(let status, let message):
             switch status {
-            case 401:
-                return "Your session expired. Please sign out and sign in again."
-            case 400:
-                return message.isEmpty ? "Some order details are missing." : message
-            case 404:
-                return "A product in your cart is no longer available."
-            default:
-                return message.isEmpty ? "Server error (\(status)). Please try again." : message
+            case 401: return "Your session expired. Please sign out and sign in again."
+            case 400: return message.isEmpty ? "Some order details are missing." : message
+            case 404: return "A product in your cart is no longer available."
+            default:  return message.isEmpty ? "Server error (\(status)). Please try again." : message
             }
         }
     }
@@ -104,10 +91,17 @@ enum OrderError: LocalizedError {
 
 class OrderService: ObservableObject {
     static let shared = OrderService()
-
     private let baseURL = "https://abbayah-backend.onrender.com/api/orders"
 
     // MARK: - Place an order
+    //
+    // Signature accepts the full set of payment fields the checkout sends:
+    //   - paymentMethod     : "cod" | "zaad" | "edahab" | ...
+    //   - mobileMoneyPhone  : customer's wallet number (Zaad / eDahab only)
+    //   - paymentRef        : transaction reference (Zaad / eDahab only)
+    //
+    // All three are optional except `paymentMethod`, so older call sites
+    // that only pass the original arguments still compile.
     func placeOrder(
         items: [CartItem],
         name: String,
@@ -115,8 +109,8 @@ class OrderService: ObservableObject {
         city: String,
         phone: String,
         paymentMethod: String,
-        mobileMoneyPhone: String?,
-        paymentRef: String?
+        mobileMoneyPhone: String? = nil,
+        paymentRef: String? = nil
     ) async throws -> CreatedOrder {
         guard let url = URL(string: baseURL) else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
@@ -127,12 +121,12 @@ class OrderService: ObservableObject {
         }
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let itemsPayload = items.map { item in
+        let itemsPayload = items.map { item -> [String: Any] in
             return [
                 "productId": item.product.id,
                 "quantity": item.quantity,
                 "size": item.selectedSize
-            ] as [String: Any]
+            ]
         }
 
         var body: [String: Any] = [
@@ -146,12 +140,14 @@ class OrderService: ObservableObject {
             "paymentMethod": paymentMethod
         ]
 
-        // Mobile money (Zaad / eDahab): send the customer's wallet number and the
-        // transaction reference they entered after paying.
-        if paymentMethod == "zaad" || paymentMethod == "edahab" {
-            body["phoneNumber"] = mobileMoneyPhone ?? phone
-            if let ref = paymentRef, !ref.trimmingCharacters(in: .whitespaces).isEmpty {
-                body["paymentRef"] = ref.trimmingCharacters(in: .whitespaces)
+        // Only send mobile-money fields for Zaad / eDahab
+        let isMobileMoney = paymentMethod == "zaad" || paymentMethod == "edahab"
+        if isMobileMoney {
+            if let num = mobileMoneyPhone, !num.isEmpty {
+                body["phoneNumber"] = num
+            }
+            if let ref = paymentRef, !ref.isEmpty {
+                body["paymentRef"] = ref
             }
         }
 
@@ -161,7 +157,6 @@ class OrderService: ObservableObject {
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
 
         guard status == 201 else {
-            // Pull the backend's own { "message": ... } so we see the real reason
             var serverMessage = ""
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 serverMessage = (json["message"] as? String) ?? (json["error"] as? String) ?? ""
@@ -182,11 +177,26 @@ class OrderService: ObservableObject {
         if let token = AuthService.shared.token {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode([Order].self, from: data)
+    }
+
+    // MARK: - Fetch single order by number (public tracking endpoint)
+    func fetchOrderByNumber(_ orderNumber: String) async throws -> Order {
+        guard let url = URL(string: "\(baseURL)/track/\(orderNumber)") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = AuthService.shared.token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(Order.self, from: data)
     }
 }
